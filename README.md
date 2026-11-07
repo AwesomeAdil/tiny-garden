@@ -55,7 +55,7 @@ rm -rf ~/Applications/Tiny\ Garden.app ~/Library/LaunchAgents/local.tiny-garden.
 
 ## Saves
 
-`~/Library/Application Support/tiny-garden/`: `save.json` (live), `save.prev.json` (the map before "New map"), `save.bad.json` (an unreadable save, kept).
+`~/Library/Application Support/tiny-garden/`: `save.json` (live), `save.prev.json` (the map before "New map"), `save.bad-YYYYMMDD-HHMMSS.json` (each unreadable save, kept).
 
 ## Tests
 

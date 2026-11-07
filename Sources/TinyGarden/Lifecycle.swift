@@ -90,8 +90,12 @@ final class Lifecycle: NSObject, NSApplicationDelegate {
     let first = !ready
     ready = true; jsPaused = false
     // Not valid JSON at all: set it aside here; JS reports saves it cannot read as bad-save.
+    // A save.json that exists but can't be read is set aside too, never mistaken for "no save" and overwritten.
     var saveJS = "null"
-    if let d = store.load() {
+    switch store.load() {
+    case .none: break
+    case .unreadable: log("save: unreadable, quarantining"); store.quarantine()
+    case .data(let d):
       if (try? JSONSerialization.jsonObject(with: d)) is [String: Any], let text = String(data: d, encoding: .utf8) {
         saveJS = "JSON.parse(\(WebHost.literal(text)))"
       } else {
