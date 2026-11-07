@@ -4,9 +4,8 @@ import { newGame, advance, catchUp } from '../web/js/sim/game.js';
 import { launch } from '../web/js/sim/shop.js';
 import { DEF_OCEAN, DEF_LAVA, WORLD_DEFS } from '../web/js/sim/content.js';
 import { node } from '../web/js/sim/world.js';
+import { serialize } from '../web/js/sim/save.js';
 import { autoNet } from './helpers.js';
-
-const snap = g => JSON.stringify({ w: g.worlds.map(w => w.S), c: g.cables }, (k, v) => v instanceof Set ? [...v] : v);
 
 test('newGame builds every world from WORLD_DEFS and ties each hub to its start', () => {
   const g = newGame(3);
@@ -45,7 +44,7 @@ test('catch-up equals playing it live', () => {
   const A = mk(), B = mk();
   advance(A, 600, 'wallpaper');
   for (let i = 0; i < 6000; i++) advance(B, .1, 'wallpaper');
-  assert.equal(snap(A), snap(B));
+  assert.deepEqual(serialize(A, 0), serialize(B, 0));
   assert.ok(A.worlds[0].S.time > 599.9);
 });
 
