@@ -9,8 +9,10 @@ final class GardenWindow: NSWindow {
   static let background = NSColor(srgbRed: 0x14 / 255.0, green: 0x15 / 255.0, blue: 0x1f / 255.0, alpha: 1)
 
   /// Points kept clear at the top in play mode (sketchybar's height).
-  static var topInset: CGFloat {
-    if let s = ProcessInfo.processInfo.environment["TINY_GARDEN_TOP_INSET"], let v = Double(s), v >= 0 { return CGFloat(v) }
+  static var topInset: CGFloat { inset(ProcessInfo.processInfo.environment["TINY_GARDEN_TOP_INSET"]) }
+  /// A finite, non-negative number of points, else 38 ("inf" and "nan" parse as Doubles but aren't sizes).
+  static func inset(_ s: String?) -> CGFloat {
+    if let s, let v = Double(s), v.isFinite, v >= 0 { return CGFloat(v) }
     return 38
   }
 

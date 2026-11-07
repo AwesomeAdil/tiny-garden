@@ -118,6 +118,10 @@ enum Control {
     let side = NSRect(x: 1512, y: -200, width: 1920, height: 1080)
     check(GardenWindow.frame(.play, screen: side, inset: 38) == NSRect(x: 1512, y: -200, width: 1920, height: 1042), "play frame keeps the screen origin")
 
+    // TINY_GARDEN_TOP_INSET: only finite, non-negative numbers.
+    check(GardenWindow.inset(nil) == 38 && GardenWindow.inset("24") == 24 && GardenWindow.inset("0") == 0, "inset parses")
+    check(["inf", "-inf", "nan", "-3", "x", ""].allSatisfy { GardenWindow.inset($0) == 38 }, "inset ignores inf, nan, negatives and junk")
+
     // Scheme handler: paths resolve inside web/, never outside it; module MIME types.
     let root = URL(fileURLWithPath: "/tmp/web", isDirectory: true)
     check(SchemeHandler.resolve(URL(string: "garden://app/js/main.js")!, root: root)?.path == "/tmp/web/js/main.js", "resolve a module path")
