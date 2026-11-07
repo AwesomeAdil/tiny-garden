@@ -1,6 +1,6 @@
 import AppKit
 
-// tiny-garden            run the app (wallpaper; --play starts in play, --skip loads ?skip=1)
+// tiny-garden            run the app (wallpaper; --play starts in play)
 // tiny-garden toggle     flip wallpaper <-> play (launches into play if not running)
 // tiny-garden quit       save and quit
 // tiny-garden status     print the running window's mode, level and behaviour
@@ -13,7 +13,7 @@ if let cmd = args.first, !cmd.hasPrefix("-") {
   exit(code)
 }
 
-let play = args.contains("--play"), skip = args.contains("--skip")
+let play = args.contains("--play")
 // One garden at a time: a second launch hands over and leaves.
 if !Control.others().isEmpty {
   log("already running")
@@ -33,6 +33,6 @@ let life = Lifecycle(window: window, host: host, store: SaveStore(dir: SaveStore
 app.delegate = life
 life.start()
 window.apply(.wallpaper, screen: screen)
-host.load(skip: skip)
-log("started (\(play ? "play" : "wallpaper")\(skip ? ", skip" : ""))")
+host.load()
+log("started (\(play ? "play" : "wallpaper"))")
 app.run()

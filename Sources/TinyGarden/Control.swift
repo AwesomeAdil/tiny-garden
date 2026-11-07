@@ -29,7 +29,7 @@ enum Control {
     case "selftest":
       return selftest()
     case "help", "-h", "--help":
-      print("usage: tiny-garden [--play] [--skip] | toggle | quit | status | selftest"); return 0
+      print("usage: tiny-garden [--play] | toggle | quit | status | selftest"); return 0
     default:
       return nil
     }
@@ -139,7 +139,7 @@ enum Control {
     // Scheme handler: paths resolve inside web/, never outside it; module MIME types.
     let root = URL(fileURLWithPath: "/tmp/web", isDirectory: true)
     check(SchemeHandler.resolve(URL(string: "garden://app/js/main.js")!, root: root)?.path == "/tmp/web/js/main.js", "resolve a module path")
-    check(SchemeHandler.resolve(URL(string: "garden://app/index.html?skip=1")!, root: root)?.path == "/tmp/web/index.html", "query is ignored")
+    check(SchemeHandler.resolve(URL(string: "garden://app/index.html?seed=3")!, root: root)?.path == "/tmp/web/index.html", "query is ignored")
     check(SchemeHandler.resolve(URL(string: "garden://app/")!, root: root)?.path == "/tmp/web/index.html", "root is index.html")
     check(SchemeHandler.resolve(URL(string: "garden://app/../secret")!, root: root) == nil, "no escaping web/")
     check(SchemeHandler.resolve(URL(string: "garden://app/js/%2E%2E/%2E%2E/x")!, root: root) == nil, "no escaping web/ with escapes")

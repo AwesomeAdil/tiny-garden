@@ -78,8 +78,9 @@ final class WebHost: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
     log("web root \(root.path)")
   }
 
-  func load(skip: Bool) {
-    url = URL(string: "garden://app/index.html" + (skip ? "?skip=1" : ""))!
+  /// The app always boots from its save (garden.boot); dev skip-ahead is a standalone-page option (?skip=1).
+  func load() {
+    url = URL(string: "garden://app/index.html")!
     webView.load(URLRequest(url: url))
   }
 
