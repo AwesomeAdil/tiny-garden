@@ -88,8 +88,9 @@ export function wireDock(app) {
     if (e.metaKey || e.ctrlKey) return;
     const k = e.key.toLowerCase();
     if (k === 'escape') { e.preventDefault(); onEsc(app); return }
-    // Enter on a focused prompt button is that button's click; anywhere else it means yes. Never both.
-    if (app.asking) { if (k === 'enter' && !(e.target.closest && e.target.closest('[data-ask]'))) { e.preventDefault(); confirmNewMap(app) } return }
+    // Enter answers the prompt once: "Keep this one" if that button has focus, otherwise yes. preventDefault keeps
+    // the focused button from also clicking (and confirmNewMap is armed once per prompt anyway).
+    if (app.asking) { if (k === 'enter') { e.preventDefault(); const b = e.target.closest && e.target.closest('[data-ask]'); if (b && b.dataset.ask === 'no') askNewMap(app, false); else confirmNewMap(app) } return }
     if (e.altKey) return;
     if (k === 'm') setTool(app, 'move'); else if (k === 'r') setTool(app, 'rope'); else if (k === 'c') setTool(app, 'cut');
     else if (k === 's') setShop(app, !app.shop);
