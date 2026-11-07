@@ -12,7 +12,7 @@ test('newGame builds every world from WORLD_DEFS and ties each hub to its start'
   assert.equal(g.worlds.length, WORLD_DEFS.length);
   assert.deepEqual(g.worlds.map(w => w.started), [true, false]);
   g.worlds.forEach(w => assert.ok(w.S.ropes.some(r => r.a === 'planet' && r.b === w.def.start)));
-  assert.deepEqual(g.ui, { view: 'planet', world: 0, speed: 1, pri: 'auto', sysSel: null, galSel: null });
+  assert.deepEqual(g.ui, { view: 'planet', world: 0, speed: 1, pri: 'auto', sysSel: null, galSel: null, names: true });
   assert.deepEqual(g.cables, []);
   assert.equal(g.savedAt, 0);
   assert.equal(newGame(3, WORLD_DEFS, 99).savedAt, 99);

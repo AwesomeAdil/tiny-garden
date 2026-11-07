@@ -13,7 +13,8 @@ import { setView, zoomTo } from './dock.js';
 
 export { nodeAt };
 
-export const toMap = (cv, e) => { const r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left) * W / r.width, y: (e.clientY - r.top) * H / r.height } };
+// A pointer event in canvas pixels (each view has its own canvas size).
+export const toMap = (cv, e) => { const r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left) * cv.width / r.width, y: (e.clientY - r.top) * cv.height / r.height } };
 
 export const ropeAt = (w, p) => { let best = null, bd = 5; w.S.ropes.forEach(r => { const g = geomR(w, r); for (let i = 0; i <= 20; i++) { const x = g.A.x + (g.B.x - g.A.x) * i / 20, y = g.A.y + (g.B.y - g.A.y) * i / 20 + 2, d = Math.hypot(x - p.x, y - p.y); if (d < bd) { bd = d; best = r } } }); return best };
 
@@ -50,7 +51,8 @@ export function wireInput(app) {
     if (app.mode !== 'play' || e.button !== 0) return;
     const p = toMap(map, e), game = app.game, view = game.ui.view; app.pointer = p;
     if (view === 'galaxy') { const g = galAt(p, app.t); if (g) { game.ui.galSel = g.name; app.panelKey = ''; renderPanel(app); if (dbl(g.name) && g.ours) setView(app, 'system') } return }
-    if (view === 'system') { const q = sysAt(game, p); if (q) { game.ui.sysSel = q.name; app.panelKey = ''; renderPanel(app); if (dbl(q.name) && q.w && q.w.started) zoomTo(app, game.worlds.indexOf(q.w)) } return }
+    if (view === 'close') return; // the close-up is a picture: nothing on it to click
+    if (view === 'system') { const q = sysAt(game, p, map.width, map.height); if (q) { game.ui.sysSel = q.name; app.panelKey = ''; renderPanel(app); if (dbl(q.name) && q.w && q.w.started) zoomTo(app, game.worlds.indexOf(q.w)) } return }
     const w = app.w, S = w.S, n = nodeAt(w, p);
     if (app.tool === 'cut') { const r = ropeAt(w, p); if (r) { S.ropes = S.ropes.filter(o => o !== r); if (S.sel.t === 'rope' && S.sel.id === r.id) S.sel = { t: 'node', id: 'planet' }; app.panelKey = ''; say(app, 'Bridge cut.') } return }
     if (app.tool === 'rope') { if (n) { app.drag = { kind: 'rope', id: n.id }; map.setPointerCapture(e.pointerId) } return }

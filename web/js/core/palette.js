@@ -24,3 +24,10 @@ export const SURF = {
   gas: (u, v) => { const b = [.2, .34, .52, .66, .84]; let i = 0; for (const x of b) if (v > x) i++; return i % 2 ? '#c9855f' : '#f5a97f' },
   lava: (u, v) => { const w = Math.sin(u * TAU * 3 + Math.sin(v * 11) * 1.5) + Math.sin(v * TAU * 2.4 + Math.sin(u * TAU * 2) * 1.6); return Math.abs(w) < .13 ? '#f5a97f' : '#3a2a33' },
 };
+
+// Solar system, "Dusk" (page 43): a dithered teal-blue glow around the sun fading to space, faint orbit dots,
+// and the name colours and leaders drawn over the galaxy and system.
+export const SAPPHIRE = '#7dc4e4';
+export const R_DUSK = ramp(['#14151f', mix('#14151f', KD.blue, .045), mix('#14151f', SAPPHIRE, .08), mix('#14151f', KD.teal, .12)]);
+export const ORBIT = { near: '#26283a', far: '#1f2131' };
+export const NAMEC = { home: KD.yellow, star: '#8087a2', world: KD.blue, far: '#6e738d', shadow: KD.crust, lead: '#494d64', leadHome: '#6e738d' };

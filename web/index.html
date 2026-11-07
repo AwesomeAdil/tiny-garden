@@ -26,7 +26,8 @@
     <div class="grp"><span class="gl">view</span>
       <button class="px dk" type="button" data-view="planet" aria-pressed="true"><img data-ui="city" alt="">City<kbd>1</kbd></button>
       <button class="px dk" type="button" data-view="system" aria-pressed="false"><img data-ui="system" alt="">System<kbd>2</kbd></button>
-      <button class="px dk" type="button" data-view="galaxy" aria-pressed="false"><img data-ui="galaxy" alt="">Galaxy<kbd>3</kbd></button></div>
+      <button class="px dk" type="button" data-view="galaxy" aria-pressed="false"><img data-ui="galaxy" alt="">Galaxy<kbd>3</kbd></button>
+      <button class="px dk" type="button" data-view="close" aria-pressed="false"><img data-ui="close" alt="">Close<kbd>4</kbd></button></div>
     <div class="grp"><span class="gl">time</span>
       <button class="px dk" type="button" data-speed="1" aria-pressed="true"><img data-ui="play" alt="">1×</button>
       <button class="px dk" type="button" data-speed="4" aria-pressed="false"><img data-ui="fast" alt="">4×</button></div>
@@ -39,6 +40,7 @@
       <div id="stage">
         <div id="mapbox">
           <canvas id="map" width="320" height="200" aria-label="Floating islands and a planet linked by rope bridges, with walkers carrying goods between them."></canvas>
+          <canvas id="names" aria-hidden="true"></canvas>
           <div id="tags" aria-hidden="true"></div>
           <div class="price" id="price" aria-live="polite"></div>
           <span id="where"></span>

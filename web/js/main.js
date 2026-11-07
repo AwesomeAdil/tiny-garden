@@ -1,5 +1,5 @@
 // Boot, clock, modes, scaling and the Swift bridge (window.garden).
-// Swift -> JS: garden.boot(saveObj|null, mode, nowMs), setMode('wallpaper'|'play'), pause(), resume(), saveNow() -> object.
+// Swift -> JS: garden.boot(saveObj|null, mode, nowMs, {topInset}?), setMode('wallpaper'|'play'), pause(), resume(), saveNow() -> object.
 // JS -> Swift: webkit.messageHandlers.garden.postMessage({type:'ready'|'save'|'exit'|'bad-save'|'new-map', ...}).
 // Standalone (no webkit, for dev and shots): boots from ?seed&mode&view&skip&world&n&dump.
 import { newGame, advance } from './sim/game.js';
@@ -8,6 +8,8 @@ import { skip } from './sim/dev.js';
 import { node } from './sim/world.js';
 import { sysPlanets } from './sim/system.js';
 import { W, H } from './sim/content.js';
+import { viewSize } from './core/pixel.js';
+import { VIEWS } from './ui/esc.js';
 import { bg } from './draw/scene.js';
 import { drawMap } from './draw/map.js';
 import { drawSystem } from './draw/system.js';
@@ -24,20 +26,22 @@ import { PixCtx } from './core/pixctx.js';
 const MAX_GAP = 43200, CHUNK = 1800, SAVE_MS = 30000, FIRST_DAYS = 3 * 864e5;
 // Wallpaper is a quiet background. Each frame WebKit puts on screen costs about 1% of a core on a big display
 // (more the more screen it covers), so the map draws 3 times a second and skips frames that didn't change,
-// the galaxy turns in one-second steps, and the full-screen sky around the map repaints every 10 s.
+// the galaxy turns slowly every frame, and the full-screen sky around the map repaints every 10 s.
 // docs/TIMINGS.md has the measurements.
-const WALL_MS = 333, SKY_MS = 10000, GAL_TURN = 1;
-const VIEWS = ['planet', 'system', 'galaxy'];
+// The close-up's dawn planet body is per-pixel, so it re-renders every 4 s in wallpaper (every 0.5 s in play).
+// The wallpaper galaxy turns at 0.2 of play's spin in steps of 2/3 s (every other frame), so the disc edge moves
+// 0.75 px a step and reads as smooth; the disc costs about 2.5 ms to recompute at 688x288 (docs/TIMINGS.md).
+const WALL_MS = 333, SKY_MS = 10000, GAL_WALL_SPIN = .2, GAL_WALL_STEP = 1.5, DAWN_STEP = 4;
 const $ = id => document.getElementById(id);
 const bridge = () => window.webkit?.messageHandlers?.garden;
 const post = msg => { try { bridge()?.postMessage(msg) } catch (e) { /* no host */ } };
 const native = !!bridge();
 
-const els = { sky: $('sky'), stage: $('stage'), mapbox: $('mapbox'), map: $('map'), tags: $('tags'), price: $('price'), where: $('where'), catch: $('catch'), playtag: $('playtag'), ask: $('ask'),
+const els = { sky: $('sky'), stage: $('stage'), mapbox: $('mapbox'), map: $('map'), names: $('names'), tags: $('tags'), price: $('price'), where: $('where'), catch: $('catch'), playtag: $('playtag'), ask: $('ask'),
   side: $('side'), view: $('view'), vlbl: $('vlbl'), vday: $('vday'), panel: $('panel'), dock: $('dock'), shopbtn: $('shopbtn'), newbtn: $('newbtn'), guide: $('guide'), stock: $('stock'), hint: $('hint') };
 
 const app = {
-  game: null, mode: 'wallpaper', tool: 'move', shop: false, drag: null, pointer: null, t: 0, panelKey: '', hintUntil: 0, asking: false, catching: false,
+  game: null, mode: 'wallpaper', tool: 'move', shop: false, drag: null, pointer: null, t: 0, panelKey: '', namesKey: '', nameU: 2, hintUntil: 0, asking: false, catching: false,
   els, mapCtx: els.map.getContext('2d'), viewCtx: els.view.getContext('2d'),
   get w() { return this.game.worlds[this.game.ui.world] || this.game.worlds[0] },
   exit: () => native ? post({ type: 'exit' }) : setMode('wallpaper'),
@@ -48,6 +52,9 @@ const skyCtx = els.sky.getContext('2d'), tile = document.createElement('canvas')
 const tileCtx = tile.getContext('2d');
 let sky = { x0: 0, y0: 0, mx: 0, my: 0 };
 
+// sketchybar covers the top of the screen (TINY_GARDEN_TOP_INSET, CSS px; Swift passes it to boot). The wallpaper
+// keeps its overlay text below it.
+let topInset = 38;
 const randSeed = () => Math.floor(Math.random() * 2147483647);
 const setText = (el, v) => { if (el.textContent !== v) el.textContent = v };
 
@@ -67,7 +74,7 @@ function tick() {
   drainEvents(app);
 
   const p = performance.now(), play = app.mode === 'play'; app.t = (p - t0) / 1000;
-  if (p - lastDraw >= (play ? 50 : WALL_MS) - 4) { lastDraw = p; if (play) { drawMain(); renderPrice(app) } else drawWall() }
+  if (p - lastDraw >= (play ? 50 : WALL_MS) - 4) { lastDraw = p; drawMain(); if (play) renderPrice(app) }
   if (play && p - lastView >= 110) { lastView = p; drawView() }
   if (p - lastPanel >= (play ? 250 : 1000) - 4) { lastPanel = p; renderSlow() }
   if (now - lastSave >= SAVE_MS) save();
@@ -81,14 +88,32 @@ function schedule() {
 function unschedule() { if (raf) cancelAnimationFrame(raf); if (timer) clearTimeout(timer); raf = timer = 0 }
 
 // ---------- drawing ----------
-function drawMain(ctx = app.mapCtx) {
-  const game = app.game, ui = game.ui, w = app.w, t = app.t, play = app.mode === 'play';
-  if (ui.view === 'galaxy') { if (!play) galInvalidate(ctx); drawGalaxy(ctx, t, play ? ui.galSel : null, play ? t : Math.floor(t * GAL_TURN) / GAL_TURN) }
-  else if (ui.view === 'system') drawSystem(ctx, game, t, play ? ui.sysSel : null);
-  else if (play) drawMap(ctx, game, w, t, { drag: app.drag, pointer: app.pointer, tool: app.tool });
-  else { const S = w.S, keep = S.sel; S.sel = { t: 'none', id: null }; try { drawMap(ctx, game, w, t) } finally { S.sel = keep } }
+// The play-mode city draws straight into #map (320x200). Every other view, and the whole wallpaper, is drawn
+// in JS (PixCtx) at the view's own size, and only a frame whose pixels changed is put into #map.
+// The same buffer is what the galaxy and system names are placed around (ui/tags.js renderNames).
+const art = { pix: null, prev: null, w: 0, h: 0, s: 1, view: null };
+app.art = art;
+
+function drawMain(force = false) {
+  const game = app.game, ui = game.ui, w = app.w, t = app.t, play = app.mode === 'play', v = ui.view;
+  if (play && v === 'planet') { drawMap(app.mapCtx, game, w, t, { drag: app.drag, pointer: app.pointer, tool: app.tool }); art.view = null }
+  else {
+    const c = art.pix;
+    if (v === 'galaxy') { if (!play) galInvalidate(c); drawGalaxy(c, t, play ? ui.galSel : null, play ? t : Math.floor(t * GAL_WALL_STEP) / GAL_WALL_STEP * GAL_WALL_SPIN, art.w, art.h) }
+    else if (v === 'system') drawSystem(c, game, t, play ? ui.sysSel : null, art.w, art.h);
+    else if (v === 'close') { const n = closeSubject(w), rt = play ? Math.floor(t * 2) / 2 : Math.floor(t / DAWN_STEP) * DAWN_STEP; if (n) islandView(c, w, n, t, art.w, art.h, rt); else planetView(c, game, w, t, art.w, art.h) }
+    else { const S = w.S, keep = S.sel; S.sel = { t: 'none', id: null }; try { drawMap(c, game, w, t) } finally { S.sel = keep } }
+    art.view = v; present(force);
+  }
   const p = performance.now(); if (play || p - lastSky >= SKY_MS - 4) { lastSky = p; drawSky(t) }
 }
+function present(force) {
+  const px = art.pix.px, prev = art.prev; let changed = force;
+  for (let i = 0; !changed && i < px.length; i++) if (px[i] !== prev[i]) changed = true;
+  if (changed) { prev.set(px); app.mapCtx.putImageData(art.pix.img, 0, 0) }
+}
+// The close-up shows the world's selected island if it has been found, otherwise its town square.
+function closeSubject(w) { const S = w.S, n = S.sel && S.sel.t === 'node' ? node(w, S.sel.id) : null; return n && n.kind === 'island' && S.found.has(n.id) ? n : null }
 
 // The sky around the map: the map's own starfield, tiled so its pixel grid lines up with the map's.
 function drawSky(t) {
@@ -117,36 +142,40 @@ function drawView() {
   setText(els.vday, day(S.time));
 }
 
-// The wallpaper map is drawn in JS (PixCtx) and only a frame whose pixels changed is put into #map.
-const wall = { pix: new PixCtx(W, H), prev: new Uint32Array(W * H) };
-function drawWall(all = false) {
-  drawMain(wall.pix);
-  const px = wall.pix.px, prev = wall.prev;
-  let changed = all;
-  for (let i = 0; !changed && i < px.length; i++) if (px[i] !== prev[i]) changed = true;
-  if (changed) { prev.set(px); app.mapCtx.putImageData(wall.pix.img, 0, 0) }
-}
-
 function renderSlow() {
   const game = app.game, v = game.ui.view, play = app.mode === 'play';
-  setText(els.where, v === 'galaxy' ? 'THE GALAXY' : v === 'system' ? GSYS[0].name.toUpperCase() + ' · SOLAR SYSTEM' : app.w.def.name);
+  const cn = v === 'close' ? closeSubject(app.w) : null;
+  setText(els.where, v === 'galaxy' ? 'THE GALAXY' : v === 'system' ? GSYS[0].name.toUpperCase() + ' · SOLAR SYSTEM' : v === 'close' ? app.w.def.name + ' · ' + (cn ? app.w.def.isl[cn.id].name : 'TOWN SQUARE') : app.w.def.name);
   renderTags(app);
   els.catch.classList.toggle('on', app.catching);
   els.playtag.classList.toggle('on', Date.now() - (game.ui.firstSeen || 0) < FIRST_DAYS);
   if (play) { renderPanel(app); renderStock(app); renderGuide(app); idleHint(app) }
 }
 
-function renderAll() { lastDraw = lastView = lastPanel = lastSky = -1e9; app.panelKey = ''; els.tags.dataset.last = ''; if (app.mode === 'play') drawMain(); else drawWall(true); if (app.mode === 'play') { drawView(); renderPrice(app) } renderSlow() }
+function renderAll() { lastDraw = lastView = lastPanel = lastSky = -1e9; app.panelKey = ''; app.namesKey = ''; els.tags.dataset.last = ''; galInvalidate(art.pix); drawMain(true); if (app.mode === 'play') { drawView(); renderPrice(app) } renderSlow() }
 
 // ---------- scaling ----------
-// The map gets the largest whole-number scale that fits the stage, counted in device pixels.
+// Each view picks its canvas size and whole-number scale from the stage, counted in device pixels
+// (core/pixel.js viewSize): the city 320x200, the galaxy and system fitted to the stage, the close-up 344x144 or wider.
 function layout() {
   const dpr = window.devicePixelRatio || 1, vw = innerWidth, vh = innerHeight, root = document.documentElement.style;
   const ui = app.mode === 'play' && vw >= 2200 && vh >= 1300 ? 2 : 1; root.setProperty('--ui', ui);
   const r = els.stage.getBoundingClientRect(), dW = Math.floor(r.width * dpr), dH = Math.floor(r.height * dpr);
-  const s = Math.max(1, Math.floor(Math.min(dW / W, dH / H))), mw = W * s, mh = H * s, ox = Math.floor((dW - mw) / 2), oy = Math.floor((dH - mh) / 2);
+  const { s, w, h } = viewSize(app.game ? app.game.ui.view : 'planet', dW, dH);
+  if (els.map.width !== w || els.map.height !== h) { els.map.width = w; els.map.height = h; galInvalidate(app.mapCtx) }
+  if (!art.pix || art.w !== w || art.h !== h) Object.assign(art, { pix: new PixCtx(w, h), prev: new Uint32Array(w * h), w, h, view: null });
+  art.s = s;
+  const mw = w * s, mh = h * s, ox = Math.floor((dW - mw) / 2), oy = Math.floor((dH - mh) / 2);
   Object.assign(els.mapbox.style, { left: ox / dpr + 'px', top: oy / dpr + 'px', width: mw / dpr + 'px', height: mh / dpr + 'px' });
-  root.setProperty('--s', String(Math.max(1, Math.ceil(s / 2 - .5)) / dpr));
+  // Overlay text (where, tags, price, play tag) keeps the city's size in every view, so it doesn't jump on a view switch.
+  root.setProperty('--inset', (app.mode === 'play' ? 0 : Math.max(0, topInset - r.top - oy / dpr)) + 'px');
+  const sc = viewSize('planet', dW, dH).s; root.setProperty('--s', String(Math.max(1, Math.ceil(sc / 2 - .5)) / dpr));
+  // Names: pixel text with u device pixels per font pixel (3 at the wallpaper's 5x), on a canvas over the map.
+  const u = Math.max(2, Math.min(4, Math.round(s * .6))), nw = Math.ceil(mw / u), nh = Math.ceil(mh / u);
+  if (app.nameU !== u || art.w !== art.namesW || art.h !== art.namesH) { app.namesPrev = null; art.namesW = art.w; art.namesH = art.h }
+  app.nameU = u; app.namesKey = '';
+  if (els.names.width !== nw) els.names.width = nw; if (els.names.height !== nh) els.names.height = nh;
+  Object.assign(els.names.style, { width: nw * u / dpr + 'px', height: nh * u / dpr + 'px' });
   // Sky: same pixel size as the map, its grid aligned to the map's top-left corner.
   const Lx = Math.round(r.left * dpr) + ox, Ly = Math.round(r.top * dpr) + oy, x0 = (Lx % s) - s, y0 = (Ly % s) - s;
   const cols = Math.ceil((vw * dpr - x0) / s) + 1, rows = Math.ceil((vh * dpr - y0) / s) + 1;
@@ -156,6 +185,7 @@ function layout() {
   // Close-up: whole-number scale across the side column.
   if (app.mode === 'play') { const k = Math.max(1, Math.floor(els.side.clientWidth * dpr / 200)); Object.assign(els.view.style, { width: 200 * k / dpr + 'px', height: 120 * k / dpr + 'px' }) }
 }
+app.onView = () => { if (app.game) { layout(); renderAll() } };
 
 // ---------- modes and saving ----------
 const snapshot = () => serialize(app.game, Date.now() - behind * 1000);
@@ -166,14 +196,14 @@ function setMode(m) {
   app.mode = m; document.body.classList.toggle('wallpaper', m !== 'play');
   if (!app.game) return;
   if (m !== 'play') { setSpeed(app, 1); app.drag = null; app.pointer = null; askNewMap(app, false); renderPrice(app) }
-  unschedule(); renderAll(); layout(); renderAll(); save(); schedule();
+  unschedule(); layout(); renderAll(); layout(); renderAll(); save(); schedule();
 }
 
 function start(game, mode, nowMs) {
   const ui = game.ui;
   if (!VIEWS.includes(ui.view)) ui.view = 'planet';
   if (!(ui.world >= 0 && ui.world < game.worlds.length && game.worlds[ui.world].started)) ui.world = 0;
-  ui.speed = 1; ui.pri = ui.pri || 'auto';
+  ui.speed = 1; ui.pri = ui.pri || 'auto'; if (typeof ui.names !== 'boolean') ui.names = true;
   if (!ui.firstSeen) ui.firstSeen = nowMs;
   behind = Math.min(MAX_GAP, Math.max(0, (nowMs - (game.savedAt || nowMs)) / 1000));
   lastMs = Date.now(); lastSave = lastMs;
@@ -183,7 +213,8 @@ function start(game, mode, nowMs) {
 }
 
 window.garden = {
-  boot(saveObj, mode, nowMs = Date.now()) {
+  boot(saveObj, mode, nowMs = Date.now(), opts = {}) {
+    if (opts && typeof opts.topInset === 'number' && opts.topInset >= 0) topInset = opts.topInset;
     let game = null;
     if (saveObj != null) { try { game = deserialize(saveObj) } catch (e) { game = null } if (!game) post({ type: 'bad-save' }) }
     if (!game) { game = newGame(randSeed()); game.savedAt = nowMs }
@@ -209,15 +240,17 @@ else {
   let v = q.get('view'); if (v === 'city') v = 'planet';
   if (VIEWS.includes(v)) { game.ui.view = v; if (v === 'galaxy') game.ui.galSel = GSYS[0].name; if (v === 'system' && !game.ui.sysSel) game.ui.sysSel = game.worlds[0].def.name }
   if (q.has('world') && game.worlds[+q.get('world')]?.started) game.ui.world = +q.get('world');
+  if (q.get('names') === '0') game.ui.names = false;
+  if (q.has('inset')) topInset = Math.max(0, +q.get('inset') || 0);
   if (q.has('n')) { const w = game.worlds[game.ui.world]; if (node(w, q.get('n'))) w.S.sel = { t: 'node', id: q.get('n') } }
   game.savedAt = Date.now();
   start(game, q.get('mode') === 'wallpaper' ? 'wallpaper' : 'play', Date.now());
   if (q.get('dump') === '1') setTimeout(dump, 1500);
 }
 
-// Dev: write the map and close-up canvases into the DOM (for scripts/shot.mjs), and check that drawing never changes the game.
+// Dev: write the map, names and close-up canvases into the DOM (for scripts/shot.mjs), and check that drawing never changes the game.
 function dump() {
-  const before = JSON.stringify(serialize(app.game, 0)); drawMain(); if (app.mode === 'play') drawView();
+  const before = JSON.stringify(serialize(app.game, 0)); drawMain(true); if (app.mode === 'play') drawView();
   if (JSON.stringify(serialize(app.game, 0)) !== before) throw new Error('drawing changed the game state');
-  [['dump-map', els.map], ['dump-view', els.view]].forEach(([id, cv]) => { const pre = document.createElement('pre'); pre.id = id; pre.hidden = true; pre.textContent = cv.toDataURL('image/png'); document.body.append(pre) });
+  [['dump-map', els.map], ['dump-names', els.names], ['dump-view', els.view]].forEach(([id, cv]) => { const pre = document.createElement('pre'); pre.id = id; pre.hidden = true; pre.textContent = cv.toDataURL('image/png'); document.body.append(pre) });
 }

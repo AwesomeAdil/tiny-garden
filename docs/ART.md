@@ -13,7 +13,8 @@ If the art visibly drifts from these shots, the review fails.
 ## The five rules
 
 1. **Pixels only.** Everything is drawn as whole pixels on a small canvas:
-   the map is 320×200 and the side view is 200×120. Use `P(c, col, x, y, w, h)`
+   the city map is 320×200, the side view is 200×120, and the galaxy, system
+   and close-up views have sizes fitted to the screen (see "View sizes" below). Use `P(c, col, x, y, w, h)`
    from `core/pixel.js`, which rounds every rect to whole pixels. Never draw
    arcs, anti-aliased strokes or gradients. Draw soft light the way page 38
    does: dither through a ramp with the Bayer matrices `D` (4×4) or `B8` (8×8).
@@ -163,8 +164,11 @@ rounded corner, a system button or a native control style.
 | `web/js/draw/scene.js` | `star planet rock bg pt stream walker pxTree snail lantern tuft firefly sky bridgeOut island levelDeco piles` |
 | `web/js/draw/map.js`   | `drawMap ropeDraw geomR reachRing nodeAt` |
 | `web/js/draw/closeup.js` | `dawn planetView islandView bridgesOut SQUARE` |
-| `web/js/draw/system.js` | `drawSystem tube orb sysAt`            |
-| `web/js/draw/galaxy.js` | `galInit drawGalaxy gpos galAt blackHole GSYS` |
+| `web/js/draw/system.js` | `drawSystem tube orb sysAt sysView planeXY sysXY sysSpots` |
+| `web/js/draw/galaxy.js` | `galInit drawGalaxy gpos galAt blackHole GSYS discScale galAbove` |
+| `web/js/ui/names.js`   | `artMask placeNames` (pure name layout) |
+| `web/js/ui/tags.js`    | `renderTags pips renderNames` |
+| `web/js/core/icons.js` | also `FONT pixText textW`, the 5×7 name font |
 
 Art that depends on content is set by data in `web/js/sim/content.js`,
 never by testing an id in code:
@@ -176,6 +180,85 @@ never by testing an id in code:
   crystal, flowers or forge).
 - `treeDx`, `treeH`, `grove` and `pine` adjust an island's tree.
 
+## View sizes
+
+`core/pixel.js` `viewSize(view, stageW, stageH)` picks each view's canvas,
+counted in device pixels of the stage:
+
+| View | Canvas | Scale |
+|---|---|---|
+| city (`planet`) | 320×200 | largest whole scale that fits |
+| `galaxy`, `system` | `floor(W/s)×floor(H/s)` | `s = max(1, floor(H/288))` |
+| `close` | 344×144, widened to cover the stage | largest whole scale for 344×144 |
+
+On the 3440×1440 wallpaper that is 320×200 at 7×, 688×288 at 5× and 344×144
+at 10×. The sky canvas fills any margin at the same pixel size.
+
+- **Galaxy.** `galInit(W, H, sc)` takes the size and the disc scale
+  (`discScale`: 262 at 688×288, the whole disc with a margin). The jets, the
+  black hole and the disc-star count scale with `k = sc/150.4` (stars by k²).
+  Only pixels the disc or bulge can reach are recomputed as it turns; the
+  rest is space with a seeded starfield (90 per 64 000 px²).
+  In wallpaper the disc turns at 0.2 of play's spin, in steps of 2/3 s,
+  so its edge moves under one pixel a step and reads as smooth.
+- **System, "D3 + Dusk".** The sim keeps its orbit space (centred on
+  [160,100]; cable star-blocking is unchanged). `sysView(W, H)` maps it to the
+  canvas: centre (W/2, H/2), orbit scale `k = 1.6·min(W/688, H/288)`, plane
+  ratio .34, rolled −0.1 rad. Far-side planets go behind the sun and are
+  dimmed by .25 (a world with `sys.lift`, like CINDER, gets a brighter night
+  instead). The **dusk** is a 4-step ramp `R_DUSK` (space → blue .045 →
+  sapphire .08 → teal .12), value `(1 − d/1.25)^1.6` with d the per-axis
+  distance from the sun, dithered with B8. It, the sun's corona (R_CORE, 6
+  soft lobes, out to 3.3r) and the starfield are built once per size and
+  copied in each frame. Orbits are faint dots every ~6 px (`ORBIT`).
+  **Trails** run 1.25 rad behind each planet in `mix(sys.col, blue, .45)`,
+  then .38 (near) / .62 (far) toward space, solid for the first quarter and
+  thinning out through B8. Planets are shaded day / terminator / night
+  through B8 with a white highlight, surfaces saturated ×1.25, and an
+  optional lit rim (`sys.rim`). Nothing is drawn around planets; in play the
+  selected one gets a 3-pixel mauve chevron above it.
+- **Close-up (`close`).** `dawn`, `planetView` and `islandView` take `(W, H)`
+  (default 200×120, the side panel, drawn exactly as page 38). Wider, the dawn
+  planet grows with `f = W/200` (radius 226f, noise and sun offset scaled,
+  light radii ×√f, 55 stars per 24 000 px²); the town square keeps page 38's
+  layout centred over full-width hills and ground, with extra sky above,
+  the sky islands spread over 0.1–0.9 W, and tufts, rocks and a lantern (or
+  ember sparks, `SQUARE[k].side`) in the side areas. The subject is the
+  world's selected found island, else its town square. The dawn body is
+  per-pixel, so in wallpaper it re-renders every 4 s (`rt`).
+
+## Names (galaxy and system)
+
+Page 43's A3. Names are pixel text in the 5×7 `FONT` (advance 6), drawn on
+the `#names` canvas over the map at `u` device pixels per font pixel
+(`round(0.6·s)`, 2–4: u = 3 at the wallpaper's 5×), with a 1u `#14151f`
+shadow. Colours are `NAMEC`: home star yellow, other stars `#8087a2`,
+settled worlds blue, others `#6e738d`. Leaders are 1u wide, `#494d64`
+(`#6e738d` for home and settled worlds), straight, or with one elbow when
+the name had to shift sideways.
+
+`ui/names.js` places them from the frame just drawn: dense bright pixels
+(max channel over 60 for the system, 36 for the galaxy, and 3+ in the 5×5
+window) are art; names keep off art padded by 2 (system) or 6 (galaxy) px,
+off each other and 24 screen px from the edge; leaders never cross
+unpadded art. Each name goes above or below the plane's centre line, then
+the names on one side snap to one shared row where that stays clear. No
+clear spot means no name, never a name over art. A placed name keeps its
+slot from one placement to the next while that slot stays clear and its
+leader can still reach it, so names hold still and only the leader follows
+its star or planet; a name moves only once art covers its slot (slots reset
+on a view or size change).
+
+Names are a play-mode aid: the wallpaper never shows them. In play the N key
+toggles them (`game.ui.names`, saved, default on).
+
+## The wallpaper and sketchybar
+
+sketchybar covers the top 38 pt of the screen (`TINY_GARDEN_TOP_INSET`;
+Swift passes it to `garden.boot` as `{topInset}`). In wallpaper mode the
+overlay text at the top of the map (`#where`, `#catch`) moves down by
+`--inset` so it is never cut off.
+
 ## Checking your work
 
 ```sh
@@ -184,13 +267,17 @@ node scripts/shot.mjs "seed=7&mode=play&view=planet&skip=1" shots/city.png 1512,
 
 `scripts/shot.mjs` shoots `web/index.html` in standalone mode at the given
 window size (default `1512,944`). The params are `seed`, `mode`
-(`play` or `wallpaper`), `view` (`planet`, `system` or `galaxy`; `city`
-also works), `skip=1`, `world=<index>` and `n=<island id>`, which selects
-an island so the close-up shows it.
+(`play` or `wallpaper`), `view` (`planet`, `system`, `galaxy` or `close`;
+`city` also works), `skip=1`, `world=<index>`, `n=<island id>`, which
+selects an island so the close-ups show it, and `names=0`, which hides the
+galaxy and system names.
 
-Each shot writes the page screenshot, a `-native.png` of the 320×200 map
-canvas at its true size and, in play mode, a `-view.png` of the 200×120
-close-up. Compare the native PNGs with the reference shots, enlarged
+Each shot writes the page screenshot, a `-native.png` of the map canvas at
+its true size, a `-names.png` of the names layer and, in play mode, a
+`-view.png` of the 200×120 side close-up. The page-38 references above
+still hold for the city and the side panel; the galaxy, system and close-up
+references are page 42/43's renders in `img/v42/` and `img/v43/`
+(`c-galaxy-out`, `d3-dusk`, `a3-*`, `b1-island-344x144`). Compare the native PNGs with the reference shots, enlarged
 with nearest-neighbour. `shots/` is gitignored.
 
 The UI is page 38's game panes at full screen. The map always sits at the

@@ -22,12 +22,17 @@ const iconPixels = src => { let d = icons.get(src); if (!d) { d = src.getContext
 export class PixCtx {
   constructor(w, h) {
     this.width = w; this.height = h; this.img = new ImageData(w, h); this.px = new Uint32Array(this.img.data.buffer); this.d = this.img.data;
-    this.globalAlpha = 1; this._style = '#000000'; this._rgba = [0, 0, 0, 255];
+    this.globalAlpha = 1; this._style = '#000000'; this._rgba = [0, 0, 0, 255]; this.tx = 0; this.ty = 0;
   }
   set fillStyle(s) { if (s !== this._style) { this._style = s; this._rgba = rgbaOf(s) } }
   get fillStyle() { return this._style }
 
+  // Whole-pixel translation, as the canvas's translate (fillRect and drawImage only; putImageData ignores it).
+  translate(x, y) { this.tx += x; this.ty += y }
+  createImageData(w, h) { return new ImageData(w, h) }
+
   fillRect(x, y, w, h) {
+    x += this.tx; y += this.ty;
     let x0 = Math.round(x), y0 = Math.round(y), x1 = Math.round(x + w), y1 = Math.round(y + h);
     if (x1 < x0) [x0, x1] = [x1, x0]; if (y1 < y0) [y0, y1] = [y1, y0];
     x0 = Math.max(0, x0); y0 = Math.max(0, y0); x1 = Math.min(this.width, x1); y1 = Math.min(this.height, y1);
@@ -54,7 +59,7 @@ export class PixCtx {
   // Small icon canvases, drawn unscaled at whole pixels.
   drawImage(src, x, y) {
     const s = iconPixels(src), sw = src.width, sh = src.height, W = this.width, d = this.d, ga = Math.max(0, Math.min(1, this.globalAlpha));
-    x = Math.round(x); y = Math.round(y);
+    x = Math.round(x + this.tx); y = Math.round(y + this.ty);
     for (let j = 0; j < sh; j++) { const ty = y + j; if (ty < 0 || ty >= this.height) continue;
       for (let i = 0; i < sw; i++) { const tx = x + i; if (tx < 0 || tx >= W) continue;
         const si = (j * sw + i) * 4, a = s[si + 3] / 255 * ga; if (a <= 0) continue;

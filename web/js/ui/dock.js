@@ -5,7 +5,7 @@ import { renderPanel } from './panel.js';
 import { renderTags } from './tags.js';
 import { renderPrice } from './price.js';
 import { renderGuide, say } from './guide.js';
-import { escAction } from './esc.js';
+import { escAction, nextView } from './esc.js';
 
 const $$ = (app, q) => app.els.dock.querySelectorAll(q);
 const press = (b, on) => b.setAttribute('aria-pressed', on ? 'true' : 'false');
@@ -16,7 +16,7 @@ export function setTool(app, t) {
   app.els.map.className = t === 'move' ? '' : t; app.hintUntil = 0;
 }
 
-// Switch the big view: 'planet' (the current world's city), 'system' or 'galaxy'.
+// Switch the big view: 'planet' (the current world's city), 'system', 'galaxy' or 'close' (the close-up).
 export function setView(app, v) {
   const ui = app.game.ui; ui.view = v;
   // A drag never survives a view change: no unseen ties or moves, and its rope preview and price tag go with it.
@@ -26,7 +26,16 @@ export function setView(app, v) {
   if (v === 'galaxy') ui.galSel = GSYS[0].name;
   if (v !== 'planet' && app.shop) { app.shop = false; press(app.els.shopbtn, false) }
   galInvalidate(app.mapCtx); galInvalidate(app.viewCtx);
-  app.panelKey = ''; app.els.tags.dataset.last = ''; renderPanel(app); renderTags(app); renderGuide(app);
+  app.panelKey = ''; app.els.tags.dataset.last = ''; app.namesKey = ''; app.namesPrev = null;
+  // Each view has its own canvas size (main.js layout), so re-fit and redraw before the tags and names.
+  if (app.onView) app.onView();
+  renderPanel(app); renderTags(app); renderGuide(app);
+}
+
+// N: show or hide the galaxy and system names. Remembered in the save (game.ui.names); the wallpaper follows it.
+export function toggleNames(app) {
+  const ui = app.game.ui; ui.names = ui.names === false; app.namesKey = ''; app.namesPrev = null; renderTags(app);
+  say(app, ui.names ? 'Names on. Press N to hide them.' : 'Names hidden. Press N to show them.');
 }
 
 export function zoomTo(app, i) {
@@ -81,7 +90,8 @@ export function wireDock(app) {
     if (e.altKey) return;
     if (k === 'm') setTool(app, 'move'); else if (k === 'r') setTool(app, 'rope'); else if (k === 'c') setTool(app, 'cut');
     else if (k === 's') setShop(app, !app.shop);
-    else if (k === 'tab') { e.preventDefault(); goView(app, { planet: 'system', system: 'galaxy', galaxy: 'planet' }[app.game.ui.view]) }
-    else if (k === '1') goView(app, 'planet'); else if (k === '2') goView(app, 'system'); else if (k === '3') goView(app, 'galaxy');
+    else if (k === 'n') toggleNames(app);
+    else if (k === 'tab') { e.preventDefault(); goView(app, nextView(app.game.ui.view)) }
+    else if (k === '1') goView(app, 'planet'); else if (k === '2') goView(app, 'system'); else if (k === '3') goView(app, 'galaxy'); else if (k === '4') goView(app, 'close');
   });
 }

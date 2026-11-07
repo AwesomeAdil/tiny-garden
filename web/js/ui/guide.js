@@ -9,8 +9,8 @@ const nextName = (game, w) => { const n = w.def.next && game.worlds.find(x => x.
 
 export function guideText(app) {
   const game = app.game, v = game.ui.view, w = app.w, S = w.S, hub = w.hub, ISL = w.def.isl, GOAL = w.def.goal, H0 = home(game);
-  if (v === 'galaxy') return `<b>The galaxy.</b> Your home star, <b>${GSYS[0].name}</b>, is the yellow point in one arm. Click it and press <b>Zoom in</b>, or double-click it. The other stars come later.`;
-  if (v === 'system') return game.cables.length ? '<b>The solar system.</b> Click a planet to see it, then <b>Zoom in</b>. The cable carries what each world can\'t make. The star turns it red when it\'s in the way.' : `<b>The solar system.</b> Launch the first long cable from ${H0.def.name}'s town square to reach ${nextName(game, H0) || 'the next planet'}.`;
+  if (v === 'galaxy') return `<b>The galaxy.</b> Your home star, <b>${GSYS[0].name}</b>, is the yellow point in one arm. Click it and press <b>Zoom in</b>, or double-click it. The other stars come later. <b>N</b> hides or shows the names.`;
+  if (v === 'system') return game.cables.length ? '<b>The solar system.</b> Click a planet to see it, then <b>Zoom in</b>. The cable carries what each world can\'t make. The star turns it red when it\'s in the way. <b>N</b> hides or shows the names.' : `<b>The solar system.</b> Launch the first long cable from ${H0.def.name}'s town square to reach ${nextName(game, H0) || 'the next planet'}.`;
   const gl = Object.keys(GOAL).map(k => GOAL[k] + ' ' + NAME[k]).join(', '), nx = nextName(game, w);
   if (S.cable) return nx ? `<b>Done here:</b> the cable reaches ${nx}. Press <b>System</b> to zoom out and visit it.` : '<b>Done:</b> the next planet comes later. Press <b>System</b> to look at the whole system.';
   if (S.unpaid) return '<b>Upkeep is unpaid.</b> Bridges are fraying. Cut a long bridge you don\'t need, or get more Rock flowing to the town square.';

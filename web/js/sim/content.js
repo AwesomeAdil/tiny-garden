@@ -20,13 +20,15 @@ export const ISL_LAVA={
 
 // surfKey names a surface routine in palette.js SURF; squareKey names a town-square close-up in draw/closeup.js SQUARE.
 // Island art fields (draw/scene.js island): deco, treeDx (tree offset), treeH (tree height), grove (two extra leaf blobs), pine (frosted top and a pine).
-export const DEF_OCEAN = { key: 'ocean', name: 'TIDE', full: 'ocean world', surfKey: 'ocean', squareKey: 'garden', isl: ISL_OCEAN, start: 'home', goal: { tools: 8, growth: 8, light: 10, heat: 10 }, bonusKind: 'water', sys: { R: 66, v: .012, a: 1.2, r: 8 }, seedOffset: 0, next: 'lava' };
-export const DEF_LAVA = { key: 'lava', name: 'CINDER', full: 'lava world', surfKey: 'lava', squareKey: 'ember', isl: ISL_LAVA, start: 'ash', goal: { tools: 10, heat: 20, growth: 6 }, bonusKind: 'heat', sys: { R: 38, v: .02, a: 3.4, r: 6 }, seedOffset: 7, next: null };
+export const DEF_OCEAN = { key: 'ocean', name: 'TIDE', full: 'ocean world', surfKey: 'ocean', squareKey: 'garden', isl: ISL_OCEAN, start: 'home', goal: { tools: 8, growth: 8, light: 10, heat: 10 }, bonusKind: 'water', sys: { R: 66, v: .012, a: 1.2, r: 8, col: '#8aadf4', rim: '#c9dafb' }, seedOffset: 0, next: 'lava' };
+export const DEF_LAVA = { key: 'lava', name: 'CINDER', full: 'lava world', surfKey: 'lava', squareKey: 'ember', isl: ISL_LAVA, start: 'ash', goal: { tools: 10, heat: 20, growth: 6 }, bonusKind: 'heat', sys: { R: 38, v: .02, a: 3.4, r: 6, col: '#ed8796', lift: .4 }, seedOffset: 7, next: null };
 export const WORLD_DEFS = [DEF_OCEAN, DEF_LAVA];
 
+// Each sys entry: orbit radius R, speed v, start angle a, radius r, and its art: col (trail colour), optional
+// rim (a lit 1-px edge) and lift (how much its far-side night is brightened so a dark world stays visible).
 // Stars that stay visible but unreachable in v1.
 export const SYS_EXTRA = [
-  { name: 'RIME', full: 'ice world', surfKey: 'rocky', R: 96, v: .008, a: 5.0, r: 6 },
-  { name: 'TEMPEST', full: 'gas giant', surfKey: 'gas', R: 130, v: .005, a: 2.4, r: 11 },
+  { name: 'RIME', full: 'ice world', surfKey: 'rocky', R: 96, v: .008, a: 5.0, r: 6, col: '#91d7e3' },
+  { name: 'TEMPEST', full: 'gas giant', surfKey: 'gas', R: 130, v: .005, a: 2.4, r: 11, col: '#f5a97f' },
 ];
 export const GSYS_NAMES = [['Quiet Sun', .6], ['Twin Embers', .85], ["Giant's Ring", .35], ['The Maw', .72], ['The Nursery', .5], ['Glass Spiral', .95]];

@@ -48,6 +48,8 @@ export function deserialize(obj, defs = WORLD_DEFS) {
       w.TANG = tangled(w); allPairs(w);
       worlds.push(w);
     }
+    // Fields added to ui after v1 get their defaults here (no version bump: migrate stays identity).
+    if (typeof obj.ui.names !== 'boolean') obj.ui.names = true;
     return { seed: obj.seed, worlds, cables: obj.cables, ui: obj.ui, savedAt: typeof obj.savedAt === 'number' ? obj.savedAt : 0 };
   } catch (e) {
     return null;

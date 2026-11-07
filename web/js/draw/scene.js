@@ -71,8 +71,13 @@ export function lantern(c, x, y, t) { P(c, C.rock, x + 1, y, 5, 1); P(c, C.rock,
 export function tuft(c, x, y, t, ph, col) { const n = Math.sin(t * .8 + ph) > .5 ? 1 : 0; P(c, col, x, y - 1); P(c, col, x + n, y - 2); P(c, col, x + 2, y - 1); P(c, col, x + 2 + n, y - 3) }
 export function firefly(c, x, y, t, ph) { if (Math.sin(t * 1.1 + ph) < -.35) return; P(c, C.glow, x, y); c.globalAlpha = .3; P(c, C.glow, x - 1, y); P(c, C.glow, x + 1, y); P(c, C.glow, x, y - 1); P(c, C.glow, x, y + 1); c.globalAlpha = 1 }
 
-// The close-up night sky (VW x VH).
-export function sky(c, t) { for (let y = 0; y < VH; y++)P(c, mix(C.crust, C.base, Math.min(1, y / 90)), 0, y, VW, 1); VST.forEach(s => { if (Math.sin(t * .5 + s[2]) > -.3) P(c, mix(C.sub, C.crust, .35), s[0], s[1]) }) }
+// The close-up night sky (VW x VH by default). A wider or taller one keeps the gradient on the bottom VH rows
+// (dy is the extra height above them) and repeats the 200x70 star patch across the rest.
+export function sky(c, t, w = VW, h = VH, dy = 0) {
+  for (let y = 0; y < h; y++)P(c, mix(C.crust, C.base, Math.max(0, Math.min(1, (y - dy) / 90))), 0, y, w, 1);
+  const ox0 = Math.round((w - VW) / 2), sx = ox0 - Math.ceil(ox0 / VW) * VW, col = mix(C.sub, C.crust, .35);
+  for (let oy = dy; oy > -70; oy -= 70) for (let ox = sx; ox < w; ox += VW) VST.forEach(s => { if (Math.sin(t * .5 + s[2] + ox * .01 + oy * .02) > -.3 && s[1] + oy < h) P(c, col, s[0] + ox, s[1] + oy) });
+}
 
 // A bridge leaving a close-up: deck, handrail and posts, getting smaller as it heads off into the distance.
 export function bridgeOut(c, b, lvl, tang) {

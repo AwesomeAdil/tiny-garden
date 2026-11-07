@@ -73,3 +73,13 @@ test('worlds added to content later are appended fresh; mismatches are refused',
   assert.equal(deserialize({ ...o, worlds: [o.worlds[1], o.worlds[0]] }, [...WORLD_DEFS, extra]), null);
   assert.equal(deserialize(o, WORLD_DEFS.slice(0, 1)), null);
 });
+
+test('names are on by default, survive a round trip, and old saves get the default', () => {
+  const g = newGame(3);
+  assert.equal(g.ui.names, true);
+  g.ui.names = false;
+  assert.equal(deserialize(trip(serialize(g, 1))).ui.names, false);
+  const old = trip(serialize(newGame(3), 1)); delete old.ui.names;
+  assert.equal(deserialize(old).ui.names, true);
+  assert.deepEqual(migrate(old), old, 'no new save version: migrate stays identity');
+});

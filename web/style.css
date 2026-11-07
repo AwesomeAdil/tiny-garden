@@ -1,7 +1,8 @@
 /* tiny-garden: page 38's game panes, full screen. Catppuccin Macchiato tokens.
    Pixel rules (docs/ART.md): square beveled frames, monospace lettering, no emoji, integer nearest-neighbour scaling.
    --s  = CSS px per UI pixel (unitless) on the map (tags, price tag); set by main.js so icons land on whole device pixels.
-   --ui = whole-number zoom for the dock and side panel on big screens. */
+   --ui = whole-number zoom for the dock and side panel on big screens.
+   --inset = how far the wallpaper's overlay text moves down to clear sketchybar (main.js, from TINY_GARDEN_TOP_INSET). */
 :root { --base:#24273a; --mantle:#1e2030; --crust:#181926; --space:#14151f; --surface:#363a4f; --text:#cad3f5; --sub:#a5adcb; --accent:#c6a0f6; --yellow:#eed49f; --green:#a6da95; --red:#ed8796; --blue:#8aadf4;
   --mono:ui-monospace,"JetBrains Mono",Menlo,monospace; --s:1; --ui:1; --side:424px; }
 * { box-sizing:border-box; margin:0; padding:0; }
@@ -29,7 +30,7 @@ body.wallpaper #map { cursor:default; }
 #playtag { display:none; position:absolute; right:calc(6px * var(--s)); bottom:calc(6px * var(--s)); pointer-events:none; background:#1a1c2b; color:var(--sub); font:800 calc(9.5px * var(--s)) var(--mono); letter-spacing:calc(1px * var(--s)); padding:calc(3px * var(--s)) calc(7px * var(--s)); }
 #playtag b { color:var(--accent); }
 body.wallpaper #playtag.on { display:block; }
-#catch { display:none; position:absolute; right:calc(6px * var(--s)); top:calc(5px * var(--s)); pointer-events:none; font:700 calc(10px * var(--s)) var(--mono); letter-spacing:calc(.8px * var(--s)); color:#6e738d; text-shadow:0 1px 0 #14151f; }
+#catch { display:none; position:absolute; right:calc(6px * var(--s)); top:calc(var(--inset, 0px) + 5px * var(--s)); pointer-events:none; font:700 calc(10px * var(--s)) var(--mono); letter-spacing:calc(.8px * var(--s)); color:#6e738d; text-shadow:0 1px 0 #14151f; }
 body:not(.wallpaper) #catch.on { display:block; }
 
 /* ---------- dock ---------- */
@@ -49,7 +50,8 @@ body:not(.wallpaper) #catch.on { display:block; }
 
 /* ---------- map overlays ---------- */
 #tags { position:absolute; inset:0; pointer-events:none; }
-#where { position:absolute; left:calc(4px * var(--s)); top:calc(3px * var(--s)); font:700 calc(12px * var(--s)) var(--mono); color:#8aadf4; letter-spacing:calc(.8px * var(--s)); pointer-events:none; text-shadow:0 1px 0 #14151f; }
+#names { position:absolute; left:0; top:0; pointer-events:none; }
+#where { position:absolute; left:calc(4px * var(--s)); top:calc(var(--inset, 0px) + 3px * var(--s)); font:700 calc(12px * var(--s)) var(--mono); color:#8aadf4; letter-spacing:calc(.8px * var(--s)); pointer-events:none; text-shadow:0 1px 0 #14151f; }
 .ntag { position:absolute; transform:translate(-50%,0); display:flex; flex-direction:column; align-items:center; gap:calc(1px * var(--s)); font:700 calc(10.5px * var(--s)) var(--mono); line-height:1.2; letter-spacing:calc(.6px * var(--s)); white-space:nowrap; text-shadow:0 1px 0 #14151f,0 0 4px #14151f; }
 .ntag .row { display:flex; gap:calc(4px * var(--s)); align-items:center; font-weight:600; color:#cad3f5; background:rgba(24,25,38,.8); padding:0 calc(4px * var(--s)); letter-spacing:0; }
 .ntag img { width:calc(12px * var(--s)); height:calc(12px * var(--s)); image-rendering:pixelated; vertical-align:middle; }

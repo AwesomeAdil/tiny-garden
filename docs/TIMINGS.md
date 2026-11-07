@@ -50,3 +50,53 @@ for a city frame, and about 4 ms for the per-pixel galaxy.
 | 3 fps, galaxy turning in 1 s steps | 4.0 | 5.0 | yes (final) |
 
 Play mode is unchanged: animation frames, with the #map canvas drawn as before.
+
+## Wallpaper CPU (Task 7b: fitted views, Dusk system, close-up, smooth galaxy)
+
+Same method as Task 7: 3440×1440 @1x, the app plus the three WebKit helpers it started, `top -l 2 -s 20`
+after a 100 s warm-up (about 2 minutes per view). The garden is restarted per view with `ui.view` set in
+save.json; the script:
+
+```sh
+# m.sh VIEW WARM SAMPLE
+tiny-garden quit; while pgrep -qx tiny-garden; do sleep .1; done
+python3 -c 'import json,sys; p=sys.argv[1]; s=json.load(open(p)); s["ui"]["view"]=sys.argv[2]; json.dump(s,open(p,"w"))' \
+  "$HOME/Library/Application Support/tiny-garden/save.json" "$VIEW"
+before=$(pgrep -f 'com.apple.WebKit\.(WebContent|GPU|Networking)' | sort)
+launchctl kickstart gui/$(id -u)/local.tiny-garden; sleep 3
+after=$(pgrep -f 'com.apple.WebKit\.(WebContent|GPU|Networking)' | sort)
+new=$(comm -13 <(echo "$before") <(echo "$after")); sleep "$WARM"
+top -l 2 -s "$SAMPLE" -pid $(pgrep -x tiny-garden) $(for p in $new; do echo -pid $p; done) -stats pid,command,cpu
+```
+
+The machine was busier than during Task 7 (WindowServer 13–27 instead of 23–25), so the 69e014e build
+(Task 7's) was measured again in the same session as the baseline.
+
+| View | 69e014e, Task 7 log | 69e014e, same session | **7b** | 7b canvas |
+|---|---|---|---|---|
+| city | 4.0 | 5.2 | **5.1** | 320×200 at 7× |
+| system | 4.0 | 4.6 | **4.7** | 688×288 at 5× |
+| galaxy | 4.9 | 4.7 | **4.7** | 688×288 at 5× |
+| close | – | – | **4.8** | 344×144 at 10× |
+
+Verdict: no view costs more than Task 7's build did under the same conditions (differences are within the
+±0.3 noise). The city is 5.1 only because the session baseline was 5.2.
+
+What it took (7b steps, same session):
+
+| Step | system | galaxy |
+|---|---|---|
+| First build: names on in wallpaper (re-placed every second), names canvas always shown, galaxy disc recomputed every frame at 0.4 spin | 5.4 | 7.1 |
+| Names never in wallpaper; an empty names canvas is `display:none` (a full-screen transparent layer still costs a composite per frame) | 4.7 | 5.4 |
+| Galaxy at 0.2 of play's spin, disc recomputed in 2/3 s steps (0.75 px at the edge per step) | – | **4.7** |
+
+Other measures:
+- The galaxy disc only recomputes "active" pixels (where the disc or bulge can reach, about a fifth of
+  688×288) from precomputed per-pixel factors: about 2.5 ms per turn step in Node, against 4 ms for the
+  whole 320×200 before.
+- The system's dusk, sun corona and starfield are built once per size and copied in.
+- The close-up's dawn planet body re-renders every 4 s in wallpaper (it drifts under a pixel in that time).
+
+| Date | Task | Size | Wall-clock | Source |
+|---|---|---|---|---|
+| 2026-11-07 | Task 7b: fitted views, Dusk system, names, close-up, smooth galaxy | 20 files, 3 new | ~2.5 h agent wall-clock (6 rounds of 2 min × 4-view CPU runs ≈ 45 min of it) | measured |

@@ -87,7 +87,7 @@ final class Lifecycle: NSObject, NSApplicationDelegate {
     }
     let m: Mode = first ? startMode : mode
     let now = Int64(Date().timeIntervalSince1970 * 1000)
-    host.call("garden.boot(\(saveJS), '\(m.rawValue)', \(now)); 0")
+    host.call("garden.boot(\(saveJS), '\(m.rawValue)', \(now), { topInset: \(Double(GardenWindow.topInset)) }); 0")
     log("booted in \(m.rawValue) (save: \(saveJS == "null" ? "none" : "loaded"))")
     if m != mode { enter(m, tellJS: false) }
     setPause("hidden", !window.occlusionState.contains(.visible))
