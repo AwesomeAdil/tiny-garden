@@ -2,7 +2,7 @@
 import { uiconURL } from '../core/icons.js';
 import { galInvalidate, GSYS } from '../draw/galaxy.js';
 import { renderPanel } from './panel.js';
-import { renderTags } from './tags.js';
+import { renderTags, invalidateTags } from './tags.js';
 import { renderPrice } from './price.js';
 import { renderGuide, say } from './guide.js';
 import { escAction, nextView } from './esc.js';
@@ -26,7 +26,7 @@ export function setView(app, v) {
   if (v === 'galaxy') ui.galSel = GSYS[0].name;
   if (v !== 'planet' && app.shop) { app.shop = false; press(app.els.shopbtn, false) }
   galInvalidate(app.mapCtx); galInvalidate(app.viewCtx);
-  app.panelKey = ''; app.els.tags.dataset.last = ''; app.namesKey = ''; app.namesPrev = null;
+  app.panelKey = ''; invalidateTags(app); app.namesKey = ''; app.namesPrev = null;
   // Each view has its own canvas size (main.js layout), so re-fit and redraw before the tags and names.
   if (app.onView) app.onView();
   renderPanel(app); renderTags(app); renderGuide(app);

@@ -15,7 +15,7 @@ import { drawMap } from './draw/map.js';
 import { drawSystem } from './draw/system.js';
 import { drawGalaxy, galInvalidate, GSYS } from './draw/galaxy.js';
 import { planetView, islandView, dawn } from './draw/closeup.js';
-import { renderTags } from './ui/tags.js';
+import { renderTags, invalidateTags } from './ui/tags.js';
 import { renderPrice } from './ui/price.js';
 import { renderPanel, renderStock, wirePanel } from './ui/panel.js';
 import { renderGuide, idleHint, drainEvents } from './ui/guide.js';
@@ -152,7 +152,7 @@ function renderSlow() {
   if (play) { renderPanel(app); renderStock(app); renderGuide(app); idleHint(app) }
 }
 
-function renderAll() { lastDraw = lastView = lastPanel = lastSky = -1e9; app.panelKey = ''; app.namesKey = ''; els.tags.dataset.last = ''; galInvalidate(art.pix); drawMain(true); if (app.mode === 'play') { drawView(); renderPrice(app) } renderSlow() }
+function renderAll() { lastDraw = lastView = lastPanel = lastSky = -1e9; app.panelKey = ''; app.namesKey = ''; invalidateTags(app); galInvalidate(art.pix); drawMain(true); if (app.mode === 'play') { drawView(); renderPrice(app) } renderSlow() }
 
 // ---------- scaling ----------
 // Each view picks its canvas size and whole-number scale from the stage, counted in device pixels

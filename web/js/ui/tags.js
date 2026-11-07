@@ -36,7 +36,10 @@ function tagsHTML(app) {
   return h;
 }
 
-export function renderTags(app) { const el = app.els.tags, h = tagsHTML(app); if (el.dataset.last !== h) { el.dataset.last = h; el.innerHTML = h } renderNames(app) }
+// The last HTML put into #tags lives in app.tagsKey. Invalidate with null, never '': '' is also what every view but
+// the city renders, so an '' marker would leave the city's tags behind after a view or mode change.
+export const invalidateTags = app => { app.tagsKey = null };
+export function renderTags(app) { const el = app.els.tags, h = tagsHTML(app); if (app.tagsKey !== h) { app.tagsKey = h; el.innerHTML = h } renderNames(app) }
 
 // The galaxy and system names (page 43's A3), in play only, unless the N key turned them off (game.ui.names).
 // The art mask comes from the frame just drawn (app.art, native pixels); the names canvas has one pixel per
@@ -57,7 +60,11 @@ export function renderNames(app) {
     todo = out.map((o, i) => o && { ...o, t: items[i].t, col: items[i].col, lead: items[i].lead }).filter(Boolean);
   }
   const key = JSON.stringify(todo.map(o => [o.t, o.x, o.y, o.line.length, o.line[0]])) + (cv ? cv.width + 'x' + cv.height : '');
-  if (!cv || app.namesKey === key) return; app.namesKey = key;
+  if (!cv) return;
+  // Guard, independent of the key: with nothing to show (wallpaper, the city, the close-up, names off) the canvas is
+  // always hidden and cleared, even if an earlier frame left it showing.
+  const stale = !todo.length && cv.style.display !== 'none';
+  if (app.namesKey === key && !stale) return; app.namesKey = key;
   // An empty names canvas is hidden, not just cleared: a full-screen transparent layer still costs WebKit a
   // composite every frame (the whole wallpaper, and the city and close-up views, never show it).
   cv.style.display = todo.length ? '' : 'none';
