@@ -43,9 +43,15 @@ export function deserialize(obj, defs = WORLD_DEFS) {
     obj = migrate(plain(obj));
     if (!obj || obj.v !== SAVE_VERSION || !Array.isArray(obj.worlds) || !obj.worlds.length || obj.worlds.length > defs.length) return null;
     if (typeof obj.seed !== 'number' || !Array.isArray(obj.cables) || !obj.ui || typeof obj.ui !== 'object') return null;
-    const worlds = obj.worlds.map((sw, i) => {
-      const def = defs[i];
-      if (!sw || sw.key !== def.key || !sw.S || !sw.POS) throw new Error('world mismatch');
+    // Saved worlds match content by key, not position, so a later build can insert a world anywhere in WORLD_DEFS.
+    // A saved world the content doesn't have (or one saved twice) makes the save unusable.
+    const keys = obj.worlds.map(sw => sw && sw.key);
+    if (new Set(keys).size !== keys.length || keys.some(k => !defs.some(d => d.key === k))) return null;
+    const worlds = defs.map(def => {
+      const sw = obj.worlds.find(x => x.key === def.key);
+      // Worlds added to content since this save was written start fresh and unstarted.
+      if (!sw) { const w = freshWorld(def, obj.seed, false); w.TANG = tangled(w); allPairs(w); return w }
+      if (!sw.S || !sw.POS) throw new Error('world mismatch');
       const S = { ...sw.S, found: new Set(sw.S.found) };
       if (!Array.isArray(S.nodes) || !Array.isArray(S.ropes) || typeof S.time !== 'number') throw new Error('bad S');
       prune(S, def);
@@ -55,17 +61,23 @@ export function deserialize(obj, defs = WORLD_DEFS) {
       w.TANG = tangled(w); allPairs(w);
       return w;
     });
-    // Worlds added to content since this save was written start fresh and unstarted.
-    for (let i = worlds.length; i < defs.length; i++) {
-      const w = freshWorld(defs[i], obj.seed, false);
-      w.TANG = tangled(w); allPairs(w);
-      worlds.push(w);
-    }
+    // Saved indices (cables, ui.world) count the save's own world order; map them onto the content's.
+    const at = keys.map(k => defs.findIndex(d => d.key === k)), remap = i => Number.isInteger(i) && i >= 0 && i < at.length ? at[i] : -1;
     // A cable joins two worlds by index; one that points anywhere else would break the system step.
-    if (!obj.cables.every(cb => cb && typeof cb === 'object' && [cb.a, cb.b].every(i => Number.isInteger(i) && i >= 0 && i < worlds.length))) return null;
+    if (!obj.cables.every(cb => cb && typeof cb === 'object' && remap(cb.a) >= 0 && remap(cb.b) >= 0)) return null;
+    const cables = obj.cables.map(cb => ({ ...cb, a: remap(cb.a), b: remap(cb.b) }));
+    obj.ui.world = Math.max(0, remap(obj.ui.world));
+    // A cable bought before its next world shipped (v1's CINDER said "the next planet comes later") reaches that
+    // world once the content has it: start it and run the cable, as launch() would have.
+    worlds.forEach((w, i) => {
+      const j = w.def.next ? worlds.findIndex(x => x.def.key === w.def.next) : -1;
+      if (!w.started || w.S.cable !== true || j < 0 || worlds[j].started) return;
+      worlds[j].started = true;
+      if (!cables.some(c => (c.a === i && c.b === j) || (c.a === j && c.b === i))) cables.push({ a: i, b: j, u: 0, dir: 0, load: [], blocked: false });
+    });
     // Fields added to ui after v1 get their defaults here (no version bump: migrate stays identity).
     if (typeof obj.ui.names !== 'boolean') obj.ui.names = true;
-    return { seed: obj.seed, worlds, cables: obj.cables, ui: obj.ui, savedAt: typeof obj.savedAt === 'number' ? obj.savedAt : 0 };
+    return { seed: obj.seed, worlds, cables, ui: obj.ui, savedAt: typeof obj.savedAt === 'number' ? obj.savedAt : 0 };
   } catch (e) {
     return null;
   }

@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { newGame, advance } from '../web/js/sim/game.js';
 import { serialize, deserialize, migrate, SAVE_VERSION } from '../web/js/sim/save.js';
-import { buy } from '../web/js/sim/shop.js';
+import { buy, launch } from '../web/js/sim/shop.js';
+import { skip } from '../web/js/sim/dev.js';
 import { WORLD_DEFS } from '../web/js/sim/content.js';
 import { autoNet, sim } from './helpers.js';
 
@@ -47,7 +48,6 @@ test('a loaded game keeps playing the same as the original', () => {
 test('garbage, wrong version and empty saves are refused', () => {
   const ok = trip(serialize(mk(), 1));
   const bad = [null, undefined, {}, { v: 2 }, 'x', 5, [], { v: 1, worlds: [] },
-    { ...ok, worlds: [ok.worlds[1], ok.worlds[0]] },
     { ...ok, worlds: [{ ...ok.worlds[0], key: 'nope' }, ok.worlds[1]] },
     { ...ok, worlds: [{ key: 'ocean' }, { key: 'lava' }] },
     { ...ok, worlds: [{ ...ok.worlds[0], S: { ...ok.worlds[0].S, nodes: [] } }, ok.worlds[1]] }];
@@ -70,8 +70,8 @@ test('worlds added to content later are appended fresh; mismatches are refused',
   const a = serialize(back, 1), b = serialize(g, 1);
   assert.deepEqual(a.worlds.slice(0, 2), b.worlds);
   assert.deepEqual(a.cables, b.cables);
-  assert.equal(deserialize({ ...o, worlds: [o.worlds[1], o.worlds[0]] }, [...WORLD_DEFS, extra]), null);
-  assert.equal(deserialize(o, WORLD_DEFS.slice(0, 1)), null);
+  assert.equal(deserialize(o, WORLD_DEFS.slice(0, 1)), null, 'a saved world the content no longer has');
+  assert.equal(deserialize({ ...o, worlds: [o.worlds[0], o.worlds[0]] }), null, 'the same world twice');
 });
 
 test('names are on by default, survive a round trip, and old saves get the default', () => {
@@ -116,4 +116,38 @@ test('a selected rope that was dropped clears the selection', () => {
   S.ropes.push({ id: 998, a: 'planet', b: 'nowhere', len: 50, u: 0, dir: 0, load: [], next: 0 });
   S.sel = { t: 'rope', id: 998 };
   assert.deepEqual(deserialize(o).worlds[0].S.sel, { t: 'node', id: 'planet' });
+});
+
+test('worlds match by key, so a def can be inserted anywhere; cables and ui.world follow', () => {
+  const g = skip(newGame(5)); g.ui.world = 1;
+  const o = trip(serialize(g, 1)), [ocean, lava] = WORLD_DEFS;
+  assert.deepEqual(o.cables.map(c => [c.a, c.b]), [[0, 1]]);
+  const mid = { ...lava, key: 'mid', seedOffset: 3, next: null }, back = deserialize(o, [ocean, mid, lava]);
+  assert.ok(back);
+  assert.deepEqual(back.worlds.map(w => w.def.key), ['ocean', 'mid', 'lava']);
+  assert.equal(back.worlds[1].started, false);
+  assert.deepEqual(serialize(back, 1).worlds[2], o.worlds[1], 'lava kept its state at its new position');
+  assert.deepEqual(back.cables.map(c => [c.a, c.b]), [[0, 2]]);
+  assert.equal(back.ui.world, 2);
+  advance(back, 30, 'wallpaper');
+  // and a save whose worlds are stored in another order loads the same
+  const swapped = deserialize({ ...o, worlds: [o.worlds[1], o.worlds[0]], cables: o.cables.map(c => ({ ...c, a: c.b, b: c.a })), ui: { ...o.ui, world: 0 } });
+  assert.deepEqual(serialize(swapped, 1), serialize(deserialize(o), 1));
+});
+
+test("a cable bought before the next world shipped reaches it once it does", () => {
+  const g = skip(newGame(5)), lavaW = g.worlds[1];
+  launch(g, lavaW); // v1: CINDER's cable, 'the next planet comes later'
+  assert.equal(lavaW.S.cable, true);
+  const o = trip(serialize(g, 1)), [ocean, lava] = WORLD_DEFS;
+  const rime = { ...lava, key: 'rime', seedOffset: 11, next: null }, lava2 = { ...lava, next: 'rime' };
+  const back = deserialize(o, [ocean, lava2, rime]);
+  assert.equal(back.worlds[2].started, true, 'RIME started');
+  assert.deepEqual(back.cables.map(c => [c.a, c.b]), [[0, 1], [1, 2]]);
+  advance(back, 30, 'wallpaper');
+  // loading that again doesn't add a second cable
+  assert.equal(deserialize(trip(serialize(back, 1)), [ocean, lava2, rime]).cables.length, 2);
+  // without a cable bought, nothing starts
+  const o2 = trip(serialize(skip(newGame(5)), 1));
+  assert.equal(deserialize(o2, [ocean, lava2, rime]).worlds[2].started, false);
 });
