@@ -59,8 +59,10 @@ export function syncDock(app) {
   $$(app, '[data-view]').forEach(b => press(b, b.dataset.view === app.game.ui.view));
 }
 
-// New map asks once, in the world, never with a browser dialog.
-export function askNewMap(app, on) { app.asking = on; app.els.ask.hidden = !on; press(app.els.newbtn, on); if (on) app.els.ask.querySelector('[data-ask="yes"]').focus() }
+// New map asks once, in the world, never with a browser dialog. Each prompt makes at most one new map
+// (app.askArmed): a second confirm (Enter, then the focused button's click) would archive the new map over save.prev.json.
+export function askNewMap(app, on) { app.asking = on; app.askArmed = on; app.els.ask.hidden = !on; press(app.els.newbtn, on); if (on) app.els.ask.querySelector('[data-ask="yes"]').focus() }
+export function confirmNewMap(app) { if (!app.askArmed) return; askNewMap(app, false); app.newMap() }
 
 export function onEsc(app) {
   if (app.asking) return askNewMap(app, false);
@@ -79,14 +81,15 @@ export function wireDock(app) {
   $$(app, '[data-speed]').forEach(b => b.addEventListener('click', () => setSpeed(app, +b.dataset.speed)));
   app.els.shopbtn.addEventListener('click', () => setShop(app, !app.shop));
   app.els.newbtn.addEventListener('click', () => askNewMap(app, !app.asking));
-  app.els.ask.addEventListener('click', e => { const b = e.target.closest('[data-ask]'); if (!b) return; askNewMap(app, false); if (b.dataset.ask === 'yes') app.newMap() });
+  app.els.ask.addEventListener('click', e => { const b = e.target.closest('[data-ask]'); if (!b) return; if (b.dataset.ask === 'yes') confirmNewMap(app); else askNewMap(app, false) });
 
   document.addEventListener('keydown', e => {
     if (app.mode !== 'play') return;
     if (e.metaKey || e.ctrlKey) return;
     const k = e.key.toLowerCase();
     if (k === 'escape') { e.preventDefault(); onEsc(app); return }
-    if (app.asking) { if (k === 'enter') { askNewMap(app, false); app.newMap() } return }
+    // Enter on a focused prompt button is that button's click; anywhere else it means yes. Never both.
+    if (app.asking) { if (k === 'enter' && !(e.target.closest && e.target.closest('[data-ask]'))) { e.preventDefault(); confirmNewMap(app) } return }
     if (e.altKey) return;
     if (k === 'm') setTool(app, 'move'); else if (k === 'r') setTool(app, 'rope'); else if (k === 'c') setTool(app, 'cut');
     else if (k === 's') setShop(app, !app.shop);
