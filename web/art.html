@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>tiny-garden · art</title>
+<!-- Temporary art bench: renders one view per URL.
+     ?view=city|system|galaxy|close|square  &seed=7  &skip=1  &t=12 (animation time)
+     &world=0 (which world for city/close/square)  &n=<island id> (close-up island)  &dump=1 (write the canvas PNG into #dump) -->
+<style>
+  :root { --crust: #14151f; --text: #cad3f5; --red: #ed8796; }
+  html, body { margin: 0; background: var(--crust); color: var(--text); font: 12px ui-monospace, Menlo, monospace; }
+  canvas { display: block; image-rendering: pixelated; }
+  #errs { color: var(--red); }
+</style>
+<script>
+  window.__errs = [];
+  const note = m => { window.__errs.push(String(m)); const ul = document.getElementById('errs'); if (ul) { const li = document.createElement('li'); li.className = 'err'; li.textContent = String(m); ul.append(li) } };
+  addEventListener('error', e => note(e.message || 'error'));
+  addEventListener('unhandledrejection', e => note(e.reason && e.reason.message || e.reason));
+</script>
+</head>
+<body>
+<canvas id="c"></canvas>
+<ul id="errs"></ul>
+<script type="module">
+import { newGame } from './js/sim/game.js';
+import { stepAll } from './js/sim/system.js';
+import { autoNet, skip } from './js/sim/dev.js';
+import { serialize } from './js/sim/save.js';
+import { isl } from './js/sim/world.js';
+import { drawMap } from './js/draw/map.js';
+import { drawSystem } from './js/draw/system.js';
+import { drawGalaxy, GSYS } from './js/draw/galaxy.js';
+import { planetView, islandView } from './js/draw/closeup.js';
+
+const q = new URLSearchParams(location.search);
+const seed = +(q.get('seed') || 7), view = q.get('view') || 'city', t = +(q.get('t') || 12);
+const game = newGame(seed);
+if (q.get('skip') === '1') skip(game);
+else { autoNet(game.worlds[0]); for (let i = 0; i < 1800; i++) stepAll(game, .1) }
+const w = game.worlds[+(q.get('world') || 0)] || game.worlds[0];
+
+const big = view === 'city' || view === 'system' || view === 'galaxy', cv = document.getElementById('c');
+cv.width = big ? 320 : 200; cv.height = big ? 200 : 120;
+const scale = big ? 3 : 4; cv.style.width = cv.width * scale + 'px'; cv.style.height = cv.height * scale + 'px';
+const ctx = cv.getContext('2d');
+
+const before = JSON.stringify(serialize(game, 0));
+if (view === 'city') drawMap(ctx, game, w, t, { drag: null, pointer: null, tool: 'move' });
+else if (view === 'system') drawSystem(ctx, game, t, (game.worlds.find(x => x.def.next === null && x.started) || game.worlds[0]).def.name);
+else if (view === 'galaxy') drawGalaxy(ctx, t, GSYS[0].name);
+else if (view === 'square') planetView(ctx, game, w, t);
+else if (view === 'close') {
+  const found = isl(w).filter(n => w.S.found.has(n.id));
+  const n = found.find(n => n.id === q.get('n')) || found.sort((a, b) => b.level - a.level)[0];
+  islandView(ctx, w, n, t);
+} else throw new Error('unknown view ' + view);
+if (JSON.stringify(serialize(game, 0)) !== before) throw new Error('drawing changed the game state');
+
+if (q.get('dump') === '1') { const pre = document.createElement('pre'); pre.id = 'dump'; pre.textContent = cv.toDataURL('image/png'); document.body.append(pre) }
+</script>
+</body>
+</html>

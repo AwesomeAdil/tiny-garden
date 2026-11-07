@@ -1,4 +1,4 @@
-import { TAU, ramp } from './pixel.js';
+import { TAU, ramp, mix } from './pixel.js';
 export const LIGHT = '#eed49f', HEAT = '#f5a97f', ROCK = '#a5adcb', WATER = '#8aadf4';
 export const RES = ['rock', 'heat', 'water', 'light', 'growth', 'tools'];
 export const COL = { rock: ROCK, heat: HEAT, water: WATER, light: LIGHT, growth: '#a6da95', tools: '#b7bdf8' };
@@ -6,6 +6,9 @@ export const NAME = { rock: 'Rock', heat: 'Heat', water: 'Water', light: 'Light'
 export const PAL = {e:'#a6da95',E:'#5f9a68',m:'#a98a7c',v:'#b7bdf8',V:'#7f85c8',c:'#7dc4e4',C:'#4a8fb0',p:'#f0c6c6',P:'#c99a9a',y:'#eed49f',Y:'#fff4d6',o:'#f5a97f',r:'#ed8796',d:'#a8473f',g:'#7f849c',G:'#a5adcb',k:'#494d64',b:'#8aadf4',B:'#c9dafb',n:'#3f5fa8',w:'#ffffff'};
 export const UPAL = { ...PAL, h: '#6e5a55', H: '#c9a58e', s: '#24273a' };
 export const KD = { crust: '#14151f', blue: '#8aadf4', mauve: '#c6a0f6', peach: '#f5a97f', yellow: '#eed49f', teal: '#8bd5ca', text: '#cad3f5', flamingo: '#f0c6c6' };
+// Scene colours (page 38 C).
+export const C = { leaf: '#a6da95', leaf2: '#8bd5ca', water: '#8aadf4', warm: '#f5a97f', flower: '#f5bde6', glow: '#eed49f', bark: '#a98a7c', crust: '#181926', base: '#24273a', surface: '#363a4f', sub: '#a5adcb', text: '#cad3f5' };
+C.leafD = mix(C.leaf, C.crust, .55); C.leafM = mix(C.leaf, C.crust, .22); C.barkD = mix(C.bark, C.crust, .45); C.moss = mix(C.leaf, C.crust, .42); C.soil = mix(C.bark, C.crust, .72); C.rock = mix(C.sub, C.crust, .5);
 export const R_ARM = ramp([KD.crust, '#1b1d33', '#25294d', '#343b6e', '#4a5596', '#6a7dc4', KD.blue, '#b4c8f7', '#e3eafc']);
 export const R_IN = ramp([KD.crust, '#221c38', '#352754', '#4f3876', '#7350a0', '#9a72c9', KD.mauve, '#e0caf9', '#f6eefe']);
 export const R_CORE = ramp([KD.crust, '#2c1f2c', '#4d2f33', '#7c4a3c', '#b36f4e', KD.peach, KD.yellow, '#f9eccb', '#fffbf0']);
