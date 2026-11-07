@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# Build Tiny Garden, assemble ~/Applications/Tiny Garden.app, link ~/.local/bin/tiny-garden,
+# and (re)load the LaunchAgent that keeps it running as the wallpaper. Safe to run again.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+APP="$HOME/Applications/Tiny Garden.app"
+BIN="$APP/Contents/MacOS/tiny-garden"
+AGENT="$HOME/Library/LaunchAgents/local.tiny-garden.plist"
+LABEL="local.tiny-garden"
+DOMAIN="gui/$(id -u)"
+LSREGISTER=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
+
+echo "• building"
+swift build -c release
+BUILT="$(swift build -c release --show-bin-path)/tiny-garden"
+"$BUILT" selftest
+
+echo "• stopping any running garden (it saves on the way out)"
+"$BUILT" quit || true
+launchctl bootout "$DOMAIN/$LABEL" 2>/dev/null || true
+for _ in $(seq 1 50); do pgrep -qx tiny-garden || break; sleep 0.1; done
+if pgrep -qx tiny-garden; then echo "  still running; sending TERM"; pkill -x tiny-garden || true; sleep 1; fi
+
+echo "• assembling $APP"
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+rm -f "$BIN"                      # new inode: never rewrite a binary in place
+cp "$BUILT" "$BIN"
+cp support/Info.plist "$APP/Contents/Info.plist"
+rsync -a --delete web/ "$APP/Contents/Resources/web/"
+codesign --force --sign - "$APP" >/dev/null 2>&1 || echo "  (ad-hoc codesign skipped)"
+"$LSREGISTER" -f "$APP" || true
+
+echo "• linking ~/.local/bin/tiny-garden"
+mkdir -p "$HOME/.local/bin" "$HOME/.local/state/tiny-garden" "$HOME/Library/LaunchAgents"
+ln -sfn "$BIN" "$HOME/.local/bin/tiny-garden"
+
+echo "• loading the LaunchAgent"
+sed "s#__HOME__#$HOME#g" support/local.tiny-garden.plist > "$AGENT"
+plutil -lint "$AGENT" >/dev/null
+for i in $(seq 1 20); do
+  launchctl bootstrap "$DOMAIN" "$AGENT" 2>/dev/null && break
+  [ "$i" = 20 ] && { echo "launchctl bootstrap failed" >&2; exit 1; }
+  sleep 0.25
+done
+echo "✓ installed; log at ~/.local/state/tiny-garden/log"
