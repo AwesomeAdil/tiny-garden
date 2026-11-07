@@ -73,6 +73,7 @@ export function wireInput(app) {
 
   map.addEventListener('pointerup', e => {
     const d0 = app.drag; if (!d0) return; app.drag = null;
+    if (app.mode !== 'play' || app.game.ui.view !== 'planet') return;
     const w = app.w, S = w.S, hub = w.hub, ISL = w.def.isl, p = toMap(map, e);
     if (d0.kind === 'move') { if (!d0.moved) sel(app, { t: 'node', id: d0.id }); else if (d0.paid) say(app, `Moved ${ISL[d0.id].name} for ${d0.paid} Rock.`); return }
     const A = node(w, d0.id), B = nodeAt(w, p); if (!B || B === A) return;

@@ -149,7 +149,7 @@ function setMode(m) {
   m = m === 'play' ? 'play' : 'wallpaper';
   app.mode = m; document.body.classList.toggle('wallpaper', m !== 'play');
   if (!app.game) return;
-  if (m !== 'play') { setSpeed(app, 1); app.drag = null; app.pointer = null; askNewMap(app, false) }
+  if (m !== 'play') { setSpeed(app, 1); app.drag = null; app.pointer = null; askNewMap(app, false); renderPrice(app) }
   unschedule(); renderAll(); layout(); renderAll(); save(); schedule();
 }
 
@@ -169,7 +169,7 @@ function start(game, mode, nowMs) {
 window.garden = {
   boot(saveObj, mode, nowMs = Date.now()) {
     let game = null;
-    if (saveObj != null) { game = deserialize(saveObj); if (!game) post({ type: 'bad-save' }) }
+    if (saveObj != null) { try { game = deserialize(saveObj) } catch (e) { game = null } if (!game) post({ type: 'bad-save' }) }
     if (!game) { game = newGame(randSeed()); game.savedAt = nowMs }
     start(game, mode, nowMs);
   },

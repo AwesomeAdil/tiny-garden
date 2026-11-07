@@ -3,6 +3,7 @@ import { uiconURL } from '../core/icons.js';
 import { galInvalidate, GSYS } from '../draw/galaxy.js';
 import { renderPanel } from './panel.js';
 import { renderTags } from './tags.js';
+import { renderPrice } from './price.js';
 import { renderGuide, say } from './guide.js';
 import { escAction } from './esc.js';
 
@@ -18,6 +19,8 @@ export function setTool(app, t) {
 // Switch the big view: 'planet' (the current world's city), 'system' or 'galaxy'.
 export function setView(app, v) {
   const ui = app.game.ui; ui.view = v;
+  // A drag never survives a view change: no unseen ties or moves, and its rope preview and price tag go with it.
+  app.drag = null; renderPrice(app);
   $$(app, '[data-view]').forEach(b => press(b, b.dataset.view === v));
   if (v === 'system') ui.sysSel = app.w.def.name;
   if (v === 'galaxy') ui.galSel = GSYS[0].name;
