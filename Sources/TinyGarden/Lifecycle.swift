@@ -14,6 +14,7 @@ final class Lifecycle: NSObject, NSApplicationDelegate {
   private var jsPaused = false
   private var terminating = false
   private var sigterm: DispatchSourceSignal?
+  private var saves = 0
 
   init(window: GardenWindow, host: WebHost, store: SaveStore, startMode: Mode) {
     self.window = window; self.host = host; self.store = store; self.startMode = startMode
@@ -24,6 +25,7 @@ final class Lifecycle: NSObject, NSApplicationDelegate {
 
   func start() {
     host.onMessage = { [unowned self] m in self.handle(m) }
+    host.onHalt = { [unowned self] in if self.mode == .play { self.enter(.wallpaper, tellJS: false) } }
 
     let dnc = DistributedNotificationCenter.default()
     dnc.addObserver(forName: Notification.Name(Control.toggleNote), object: nil, queue: .main) { [unowned self] _ in self.toggle() }
@@ -73,6 +75,9 @@ final class Lifecycle: NSObject, NSApplicationDelegate {
         log("save: message without a save object"); return
       }
       store.write(d)
+      // Every 5 minutes or so (and on the first save), keep a frame to show if the page keeps crashing.
+      if saves % 10 == 0 { host.keepFrame() }
+      saves += 1
     case "exit": enter(.wallpaper)
     case "bad-save": log("js says the save is unreadable"); store.quarantine()
     case "new-map": store.archive()
@@ -104,7 +109,10 @@ final class Lifecycle: NSObject, NSApplicationDelegate {
 
   // MARK: modes
 
-  func toggle() { enter(mode == .play ? .wallpaper : .play) }
+  func toggle() {
+    host.clearCrashes()
+    enter(mode == .play ? .wallpaper : .play)
+  }
 
   func enter(_ m: Mode, tellJS: Bool = true, restore: Bool = true) {
     guard let s = Self.screen() else { return }
@@ -160,7 +168,7 @@ final class Lifecycle: NSObject, NSApplicationDelegate {
   private func writeStatus() {
     let front = NSWorkspace.shared.frontmostApplication
     let lines = [
-      "mode=\(mode.rawValue) ready=\(ready) paused=\(jsPaused) reasons=[\(pauseReasons.sorted().joined(separator: ","))]",
+      "mode=\(mode.rawValue) ready=\(ready) paused=\(jsPaused) reasons=[\(pauseReasons.sorted().joined(separator: ","))]\(host.halted ? " web=halted" : "")",
       "window: \(window.statusLine) visible=\(window.occlusionState.contains(.visible))",
       "app: active=\(NSApp.isActive) policy=\(NSApp.activationPolicy().rawValue) frontmost=\(front?.bundleIdentifier ?? "?") pid=\(getpid())",
       "screen: \(Self.screen().map { "\(Int($0.frame.width))x\(Int($0.frame.height)) @\($0.backingScaleFactor)x" } ?? "none") inset=\(Int(GardenWindow.topInset))",

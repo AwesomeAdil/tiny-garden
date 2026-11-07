@@ -110,9 +110,59 @@ final class WebHost: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
     log("web: load failed: \(e.localizedDescription)")
   }
 
-  /// A crashed page reloads and boots again from the last save.
+  // MARK: crashes
+
+  /// Crash times since the last toggle, a pending reload, and whether reloading has stopped.
+  private var crashes: [Date] = []
+  private var reload: DispatchWorkItem?
+  private(set) var halted = false
+  /// Called once reloading stops (3 crashes in 5 minutes), so the app can drop back to wallpaper.
+  var onHalt: (() -> Void)?
+  /// The last frame known to be good, shown over a dead page.
+  private var lastGood: NSImage?
+  private var cover: NSImageView?
+
+  /// What to do after a crash, given the crash times so far (including this one): reload after 1, 5, then 30 s,
+  /// or nil to stop once 3 of them fall within 5 minutes.
+  static func crashDelay(_ times: [Date], now: Date) -> TimeInterval? {
+    if times.filter({ now.timeIntervalSince($0) <= 300 }).count >= 3 { return nil }
+    return [1, 5, 30][min(max(times.count - 1, 0), 2)]
+  }
+
+  /// A crashed page reloads, with back-off, and boots again from the last save.
   func webViewWebContentProcessDidTerminate(_ w: WKWebView) {
-    log("web: content process ended, reloading")
-    w.load(URLRequest(url: url))
+    let now = Date()
+    crashes.append(now)
+    reload?.cancel(); reload = nil
+    guard let delay = Self.crashDelay(crashes, now: now) else {
+      log("web: content process ended \(crashes.count) times, 3 within 5 minutes: not reloading until the next toggle")
+      halted = true; showCover(); onHalt?(); return
+    }
+    log("web: content process ended, reloading in \(Int(delay)) s")
+    let item = DispatchWorkItem { [weak self] in guard let self, !self.halted else { return }; self.reload = nil; self.webView.load(URLRequest(url: self.url)) }
+    reload = item
+    DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: item)
+  }
+
+  /// A toggle starts over: the crash count clears, and a halted page reloads.
+  func clearCrashes() {
+    crashes.removeAll()
+    guard halted else { return }
+    halted = false; cover?.removeFromSuperview(); cover = nil
+    log("web: reloading after a halt")
+    webView.load(URLRequest(url: url))
+  }
+
+  /// Keeps a copy of what is on screen now (called now and then while the page is healthy).
+  func keepFrame() {
+    guard !halted, webView.bounds.width > 0 else { return }
+    webView.takeSnapshot(with: nil) { [weak self] img, _ in if let img { self?.lastGood = img } }
+  }
+
+  private func showCover() {
+    guard let img = lastGood, cover == nil else { return }
+    let v = NSImageView(frame: webView.bounds)
+    v.image = img; v.imageScaling = .scaleAxesIndependently; v.autoresizingMask = [.width, .height]
+    webView.addSubview(v); cover = v
   }
 }

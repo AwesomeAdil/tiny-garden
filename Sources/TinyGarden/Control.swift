@@ -118,6 +118,14 @@ enum Control {
     let side = NSRect(x: 1512, y: -200, width: 1920, height: 1080)
     check(GardenWindow.frame(.play, screen: side, inset: 38) == NSRect(x: 1512, y: -200, width: 1920, height: 1042), "play frame keeps the screen origin")
 
+    // Crash reloads back off 1, 5, 30 s and stop at 3 crashes within 5 minutes.
+    let t0 = Date(timeIntervalSince1970: 1_000_000)
+    check(WebHost.crashDelay([t0], now: t0) == 1, "first crash reloads in 1 s")
+    check(WebHost.crashDelay([t0, t0 + 60], now: t0 + 60) == 5, "second crash reloads in 5 s")
+    check(WebHost.crashDelay([t0, t0 + 60, t0 + 120], now: t0 + 120) == nil, "3 crashes in 5 minutes stop reloading")
+    check(WebHost.crashDelay([t0, t0 + 400, t0 + 800], now: t0 + 800) == 30, "a 3rd crash spread out reloads in 30 s")
+    check(WebHost.crashDelay([t0, t0 + 400, t0 + 800, t0 + 1300], now: t0 + 1300) == 30, "later crashes stay at 30 s")
+
     // TINY_GARDEN_TOP_INSET: only finite, non-negative numbers.
     check(GardenWindow.inset(nil) == 38 && GardenWindow.inset("24") == 24 && GardenWindow.inset("0") == 0, "inset parses")
     check(["inf", "-inf", "nan", "-3", "x", ""].allSatisfy { GardenWindow.inset($0) == 38 }, "inset ignores inf, nan, negatives and junk")
