@@ -5,6 +5,7 @@
 import { newGame, advance } from './sim/game.js';
 import { serialize, deserialize } from './sim/save.js';
 import { skip } from './sim/dev.js';
+import { startClock, clockStep, clockSavedAt } from './sim/clock.js';
 import { node } from './sim/world.js';
 import { sysPlanets } from './sim/system.js';
 import { W, H } from './sim/content.js';
@@ -23,7 +24,7 @@ import { wireDock, syncDock, setSpeed, askNewMap } from './ui/dock.js';
 import { wireInput } from './ui/input.js';
 import { PixCtx } from './core/pixctx.js';
 
-const MAX_GAP = 43200, CHUNK = 1800, SAVE_MS = 30000, FIRST_DAYS = 3 * 864e5;
+const SAVE_MS = 30000, FIRST_DAYS = 3 * 864e5;
 // Wallpaper is a quiet background. Each frame WebKit puts on screen costs about 1% of a core on a big display
 // (more the more screen it covers), so the map draws 3 times a second and skips frames that didn't change,
 // the galaxy turns slowly every frame, and the full-screen sky around the map repaints every 10 s.
@@ -59,26 +60,28 @@ const randSeed = () => Math.floor(Math.random() * 2147483647);
 const setText = (el, v) => { if (el.textContent !== v) el.textContent = v };
 
 // ---------- clock ----------
-let lastMs = 0, behind = 0, paused = false, timer = 0, raf = 0, lastDraw = -1e9, lastView = -1e9, lastPanel = -1e9, lastSky = -1e9, lastSave = 0;
+let clock = startClock(0, 0), paused = false, timer = 0, raf = 0, lastDraw = -1e9, lastView = -1e9, lastPanel = -1e9, lastSky = -1e9, lastSave = 0;
 const t0 = performance.now();
 
 function tick() {
   timer = raf = 0;
   if (paused || !app.game) return;
-  const game = app.game, now = Date.now(), dt = (now - lastMs) / 1000; lastMs = now;
-  // Any gap over 1 s (sleep, quit, throttling) is caught up in chunks, never in one frame.
-  if (dt > 1) behind = Math.min(MAX_GAP, behind + dt);
-  else if (dt > 0) advance(game, dt, app.mode);
-  if (behind > 0) { const c = Math.min(CHUNK, behind); advance(game, c, 'wallpaper'); behind -= c; if (behind < 1e-6) behind = 0 }
-  app.catching = behind > 0;
-  drainEvents(app);
+  // One bad frame must not stop the garden: the next one is always scheduled, and the error still reaches
+  // window.onerror (index.html forwards it to the app log).
+  try {
+    const game = app.game, now = Date.now(), { live, chunk } = clockStep(clock, now);
+    // Any gap over 1 s (sleep, quit, throttling) is caught up in chunks, never in one frame (sim/clock.js).
+    if (live > 0) advance(game, live, app.mode);
+    if (chunk > 0) advance(game, chunk, 'wallpaper');
+    app.catching = clock.behind > 0;
+    drainEvents(app);
 
-  const p = performance.now(), play = app.mode === 'play'; app.t = (p - t0) / 1000;
-  if (p - lastDraw >= (play ? 50 : WALL_MS) - 4) { lastDraw = p; drawMain(); if (play) renderPrice(app) }
-  if (play && p - lastView >= 110) { lastView = p; drawView() }
-  if (p - lastPanel >= (play ? 250 : 1000) - 4) { lastPanel = p; renderSlow() }
-  if (now - lastSave >= SAVE_MS) save();
-  schedule();
+    const p = performance.now(), play = app.mode === 'play'; app.t = (p - t0) / 1000;
+    if (p - lastDraw >= (play ? 50 : WALL_MS) - 4) { lastDraw = p; drawMain(); if (play) renderPrice(app) }
+    if (play && p - lastView >= 110) { lastView = p; drawView() }
+    if (p - lastPanel >= (play ? 250 : 1000) - 4) { lastPanel = p; renderSlow() }
+    if (now - lastSave >= SAVE_MS) save();
+  } finally { schedule() }
 }
 // Play runs on animation frames; wallpaper ticks 3 times a second.
 function schedule() {
@@ -188,7 +191,8 @@ function layout() {
 app.onView = () => { if (app.game) { layout(); renderAll() } };
 
 // ---------- modes and saving ----------
-const snapshot = () => serialize(app.game, Date.now() - behind * 1000);
+// The save says when the sim was last run up to, so time spent paused (or not yet ticked) is caught up next time.
+const snapshot = () => serialize(app.game, clockSavedAt(clock));
 function save() { lastSave = Date.now(); if (app.game) post({ type: 'save', save: snapshot() }) }
 
 function setMode(m) {
@@ -205,8 +209,7 @@ function start(game, mode, nowMs) {
   if (!(ui.world >= 0 && ui.world < game.worlds.length && game.worlds[ui.world].started)) ui.world = 0;
   ui.speed = 1; ui.pri = ui.pri || 'auto'; if (typeof ui.names !== 'boolean') ui.names = true;
   if (!ui.firstSeen) ui.firstSeen = nowMs;
-  behind = Math.min(MAX_GAP, Math.max(0, (nowMs - (game.savedAt || nowMs)) / 1000));
-  lastMs = Date.now(); lastSave = lastMs;
+  clock = startClock(nowMs, game.savedAt || nowMs); clock.lastMs = Date.now(); lastSave = clock.lastMs;
   Object.assign(app, { game, tool: 'move', shop: false, drag: null, pointer: null, panelKey: '', hintUntil: 0 });
   game.worlds.forEach(w => { w.events.length = 0 });
   syncDock(app); setMode(mode);
@@ -221,7 +224,8 @@ window.garden = {
     start(game, mode, nowMs);
   },
   setMode,
-  pause() { paused = true; unschedule() },
+  // Pausing (screens asleep, session switched away, window hidden) also saves, so a sleep that never wakes loses nothing.
+  pause() { paused = true; unschedule(); save() },
   resume() { if (!paused) return; paused = false; schedule() },
   saveNow: () => app.game ? snapshot() : null,
 };
