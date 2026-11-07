@@ -33,12 +33,12 @@ final class GardenWindow: NSWindow {
     return NSRect(x: screen.minX, y: screen.minY, width: screen.width, height: max(0, screen.height - inset))
   }
 
-  func apply(_ mode: Mode, screen: NSScreen) {
+  /// `activate` raises and focuses the play window; a screen change re-applies only the frame and level.
+  func apply(_ mode: Mode, screen: NSScreen, activate: Bool = true) {
     self.mode = mode
     let f = Self.frame(mode, screen: screen.frame, inset: Self.topInset)
     switch mode {
     case .wallpaper:
-      if isKeyWindow { resignKey() }
       level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopWindow)))
       ignoresMouseEvents = true
       collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
@@ -49,8 +49,7 @@ final class GardenWindow: NSWindow {
       ignoresMouseEvents = false
       collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
       setFrame(f, display: true)
-      makeKeyAndOrderFront(nil)
-      NSApp.activate(ignoringOtherApps: true)
+      if activate { makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true) } else { orderFrontRegardless() }
     }
     log("mode \(mode.rawValue): \(statusLine)")
   }

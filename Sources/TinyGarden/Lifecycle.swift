@@ -46,7 +46,14 @@ final class Lifecycle: NSObject, NSApplicationDelegate {
     NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [unowned self] _ in
       guard let s = Self.screen() else { return }
       log("screens changed")
-      self.window.apply(self.mode, screen: s)
+      self.window.apply(self.mode, screen: s, activate: false)
+    }
+    // Another app took focus (a click elsewhere, ⌘Tab, a system dialog): play must not stay on top of it.
+    // That app is already in front, so don't hand focus back to the one play started from.
+    NotificationCenter.default.addObserver(forName: NSApplication.didResignActiveNotification, object: nil, queue: .main) { [unowned self] _ in
+      guard self.mode == .play else { return }
+      log("lost focus in play: back to wallpaper")
+      self.enter(.wallpaper, restore: false)
     }
 
     // launchctl bootout / kill: save like a normal quit.
@@ -98,7 +105,7 @@ final class Lifecycle: NSObject, NSApplicationDelegate {
 
   func toggle() { enter(mode == .play ? .wallpaper : .play) }
 
-  func enter(_ m: Mode, tellJS: Bool = true) {
+  func enter(_ m: Mode, tellJS: Bool = true, restore: Bool = true) {
     guard let s = Self.screen() else { return }
     if m == .play, mode != .play {
       let front = NSWorkspace.shared.frontmostApplication
@@ -108,15 +115,27 @@ final class Lifecycle: NSObject, NSApplicationDelegate {
     window.apply(m, screen: s)
     if m == .play { window.makeFirstResponder(host.webView) }
     if ready, tellJS { host.call("garden.setMode('\(m.rawValue)'); 0") }
-    if m == .wallpaper { restoreFocus() }
+    if m == .wallpaper {
+      if restore { restoreFocus() } else { previous = nil }
+    }
   }
 
+  /// Hands focus back to the app play started from, but only while the garden is still the active app:
+  /// if something else is already in front, leave it there. If the garden is still active afterwards, it steps back.
   private func restoreFocus() {
-    guard let prev = previous, !prev.isTerminated else { NSApp.deactivate(); return }
-    previous = nil
-    NSApp.yieldActivation(to: prev)
-    prev.activate()
-    log("focus back to \(prev.bundleIdentifier ?? prev.localizedName ?? "?")")
+    let prev = previous; previous = nil
+    guard NSApp.isActive else { return }
+    if let prev, !prev.isTerminated {
+      NSApp.yieldActivation(to: prev)
+      prev.activate()
+      log("focus back to \(prev.bundleIdentifier ?? prev.localizedName ?? "?")")
+    }
+    // Activation is asynchronous: check once it has had time to land.
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+      guard let self, self.mode == .wallpaper, NSApp.isActive else { return }
+      log("still active after leaving play: deactivating")
+      NSApp.deactivate()
+    }
   }
 
   // MARK: pausing
