@@ -11,6 +11,16 @@ LABEL="local.tiny-garden"
 DOMAIN="gui/$(id -u)"
 LSREGISTER=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
 
+# The web game is checked before anything is replaced: a failing test leaves the running garden alone.
+if command -v node >/dev/null 2>&1; then
+  echo "• testing web/"
+  TESTLOG="$(mktemp -t tiny-garden-test)"
+  node --test tests/ >"$TESTLOG" 2>&1 || { tail -30 "$TESTLOG" >&2; echo "npm test (node --test tests/) failed; nothing installed" >&2; exit 1; }
+  rm -f "$TESTLOG"
+else
+  echo "  (node not found: skipping npm test)"
+fi
+
 echo "• building"
 swift build -c release
 BUILT="$(swift build -c release --show-bin-path)/tiny-garden"
@@ -43,4 +53,16 @@ for i in $(seq 1 20); do
   [ "$i" = 20 ] && { echo "launchctl bootstrap failed" >&2; exit 1; }
   sleep 0.25
 done
+echo "• waiting for the garden to be ready"
+ok=""; deadline=$((SECONDS + 10))
+while [ "$SECONDS" -lt "$deadline" ]; do
+  if "$BIN" status 2>/dev/null | grep -q "ready=true"; then ok=1; break; fi
+  sleep 0.5
+done
+if [ -z "$ok" ]; then
+  echo "tiny-garden did not report ready=true within 10 s; see ~/.local/state/tiny-garden/log" >&2
+  "$BIN" status >&2 || true
+  exit 1
+fi
+"$BIN" status | head -1
 echo "✓ installed; log at ~/.local/state/tiny-garden/log"
