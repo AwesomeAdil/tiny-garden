@@ -31,10 +31,11 @@ export function blackHole(c, cx, cy, R) { for (let a = 0; a < TAU; a += .02)P(c,
 export const galInvalidate = ctx => { LAST.delete(ctx) };
 
 // sel is the selected system's name (game.ui.galSel) or null. Redraws at most every 0.1 s per canvas.
-export function drawGalaxy(ctx, t, sel) {
+// rt is the time the galaxy has turned to (default t); the costly per-pixel disc is only recomputed when it changes.
+export function drawGalaxy(ctx, t, sel, rt = t) {
   const mc = ctx, last = LAST.has(mc) ? LAST.get(mc) : -1; if (last >= 0 && t >= last && t - last < .1) return; LAST.set(mc, t);
-  const G = gal(), o = GO, rot = galRot(t), m = o.arms, rotN = rot / TAU * 768, px = G.px;
-  for (let y = 0, i = 0; y < H; y++) for (let x = 0; x < W; x++, i++) {
+  const G = gal(), o = GO, rot = galRot(rt), m = o.arms, rotN = rot / TAU * 768, px = G.px;
+  if (G.rot !== rot) for (let y = 0, i = 0; y < H; y++) for (let x = 0; x < W; x++, i++) {
     const r = G.rs[i], th = G.th[i] + rot, b = B8[(y & 7) * 8 + (x & 7)];
     const phase = m * th - o.pitch * G.ln[i], armRaw = .5 + .5 * Math.cos(phase), arm = Math.pow(armRaw, o.sharp);
     const nA = NN((G.th[i] / TAU + .5) * 768 + rotN, G.ln[i] * 70), nB = NN((G.th[i] / TAU + .5) * 1536 + rotN * 2, G.ln[i] * 150 + 80);
@@ -45,6 +46,7 @@ export function drawGalaxy(ctx, t, sel) {
     const RR = (heat + bl + (b - .5) * .22 > .3) ? R_CORE : (arm > .72 && nB + (b - .5) * .1 > .7 && r > .18) ? R_PINK : (r + (b - .5) * .1 < .36 - nA * .1) ? R_IN : R_ARM;
     let idx = Math.floor(Math.min(1, val) * (RR.length - 1) + b); if (idx >= RR.length) idx = RR.length - 1; px[i] = RR[idx < 0 ? 0 : idx];
   }
+  G.rot = rot;
   mc.putImageData(G.img, 0, 0);
   G.stars.forEach(s => { const p = gpos(s.q, s.a, rot); if (p.x < 0 || p.x >= W || p.y < 0 || p.y >= H) return; const tw = Math.sin(t * .8 + s.ph); if (tw < -.6) return; const col = s.v > .82 ? '#f0c6c6' : s.v > .55 ? '#cad3f5' : '#8aadf4'; P(mc, col, Math.round(p.x), Math.round(p.y)); if (s.big && tw > .45) { mc.globalAlpha = .42; P(mc, col, Math.round(p.x) - 1, Math.round(p.y), 3, 1); P(mc, col, Math.round(p.x), Math.round(p.y) - 1, 1, 3); mc.globalAlpha = 1 } });
   for (let k = -1; k <= 1; k += 2) for (let q = 0; q < 70; q++) { const j = Math.sin(q * .3 - t * 2.2); mc.globalAlpha = Math.max(0, 1 - q / 76) * (.62 + .38 * j); const w = q < 24 ? 1 : q < 52 ? 2 : 3, sway = Math.sin(q * .13 + t * .7) * (q / 24); P(mc, q < 26 ? '#e3eafc' : q < 50 ? '#7dc4e4' : '#8aadf4', Math.round(G.cx + sway - w / 2 - (k * q * Math.sin(-.2))), Math.round(G.cy + k * (o.bh + 3 + q)), w, 1); mc.globalAlpha = 1 }

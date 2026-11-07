@@ -19,8 +19,14 @@ import { renderPanel, renderStock, wirePanel } from './ui/panel.js';
 import { renderGuide, idleHint, drainEvents } from './ui/guide.js';
 import { wireDock, syncDock, setSpeed, askNewMap } from './ui/dock.js';
 import { wireInput } from './ui/input.js';
+import { PixCtx } from './core/pixctx.js';
 
 const MAX_GAP = 43200, CHUNK = 1800, SAVE_MS = 30000, FIRST_DAYS = 3 * 864e5;
+// Wallpaper is a quiet background. Each frame WebKit puts on screen costs about 1% of a core on a big display
+// (more the more screen it covers), so the map draws 3 times a second and skips frames that didn't change,
+// the galaxy turns in one-second steps, and the full-screen sky around the map repaints every 10 s.
+// docs/TIMINGS.md has the measurements.
+const WALL_MS = 333, SKY_MS = 10000, GAL_TURN = 1;
 const VIEWS = ['planet', 'system', 'galaxy'];
 const $ = id => document.getElementById(id);
 const bridge = () => window.webkit?.messageHandlers?.garden;
@@ -46,7 +52,7 @@ const randSeed = () => Math.floor(Math.random() * 2147483647);
 const setText = (el, v) => { if (el.textContent !== v) el.textContent = v };
 
 // ---------- clock ----------
-let lastMs = 0, behind = 0, paused = false, timer = 0, raf = 0, lastDraw = -1e9, lastView = -1e9, lastPanel = -1e9, lastSave = 0;
+let lastMs = 0, behind = 0, paused = false, timer = 0, raf = 0, lastDraw = -1e9, lastView = -1e9, lastPanel = -1e9, lastSky = -1e9, lastSave = 0;
 const t0 = performance.now();
 
 function tick() {
@@ -61,27 +67,27 @@ function tick() {
   drainEvents(app);
 
   const p = performance.now(), play = app.mode === 'play'; app.t = (p - t0) / 1000;
-  if (p - lastDraw >= (play ? 50 : 100) - 4) { lastDraw = p; drawMain(); if (play) renderPrice(app) }
+  if (p - lastDraw >= (play ? 50 : WALL_MS) - 4) { lastDraw = p; if (play) { drawMain(); renderPrice(app) } else drawWall() }
   if (play && p - lastView >= 110) { lastView = p; drawView() }
-  if (p - lastPanel >= 250) { lastPanel = p; renderSlow() }
+  if (p - lastPanel >= (play ? 250 : 1000) - 4) { lastPanel = p; renderSlow() }
   if (now - lastSave >= SAVE_MS) save();
   schedule();
 }
-// Play runs on animation frames; wallpaper ticks about 10 times a second.
+// Play runs on animation frames; wallpaper ticks 3 times a second.
 function schedule() {
   if (paused || timer || raf) return;
-  if (app.mode === 'play') raf = requestAnimationFrame(tick); else timer = setTimeout(tick, 100);
+  if (app.mode === 'play') raf = requestAnimationFrame(tick); else timer = setTimeout(tick, WALL_MS);
 }
 function unschedule() { if (raf) cancelAnimationFrame(raf); if (timer) clearTimeout(timer); raf = timer = 0 }
 
 // ---------- drawing ----------
-function drawMain() {
-  const game = app.game, ui = game.ui, w = app.w, t = app.t, ctx = app.mapCtx, play = app.mode === 'play';
-  if (ui.view === 'galaxy') { if (!play) galInvalidate(ctx); drawGalaxy(ctx, t, play ? ui.galSel : null) }
+function drawMain(ctx = app.mapCtx) {
+  const game = app.game, ui = game.ui, w = app.w, t = app.t, play = app.mode === 'play';
+  if (ui.view === 'galaxy') { if (!play) galInvalidate(ctx); drawGalaxy(ctx, t, play ? ui.galSel : null, play ? t : Math.floor(t * GAL_TURN) / GAL_TURN) }
   else if (ui.view === 'system') drawSystem(ctx, game, t, play ? ui.sysSel : null);
   else if (play) drawMap(ctx, game, w, t, { drag: app.drag, pointer: app.pointer, tool: app.tool });
   else { const S = w.S, keep = S.sel; S.sel = { t: 'none', id: null }; try { drawMap(ctx, game, w, t) } finally { S.sel = keep } }
-  drawSky(t);
+  const p = performance.now(); if (play || p - lastSky >= SKY_MS - 4) { lastSky = p; drawSky(t) }
 }
 
 // The sky around the map: the map's own starfield, tiled so its pixel grid lines up with the map's.
@@ -111,6 +117,16 @@ function drawView() {
   setText(els.vday, day(S.time));
 }
 
+// The wallpaper map is drawn in JS (PixCtx) and only a frame whose pixels changed is put into #map.
+const wall = { pix: new PixCtx(W, H), prev: new Uint32Array(W * H) };
+function drawWall(all = false) {
+  drawMain(wall.pix);
+  const px = wall.pix.px, prev = wall.prev;
+  let changed = all;
+  for (let i = 0; !changed && i < px.length; i++) if (px[i] !== prev[i]) changed = true;
+  if (changed) { prev.set(px); app.mapCtx.putImageData(wall.pix.img, 0, 0) }
+}
+
 function renderSlow() {
   const game = app.game, v = game.ui.view, play = app.mode === 'play';
   setText(els.where, v === 'galaxy' ? 'THE GALAXY' : v === 'system' ? GSYS[0].name.toUpperCase() + ' · SOLAR SYSTEM' : app.w.def.name);
@@ -120,7 +136,7 @@ function renderSlow() {
   if (play) { renderPanel(app); renderStock(app); renderGuide(app); idleHint(app) }
 }
 
-function renderAll() { lastDraw = lastView = lastPanel = -1e9; app.panelKey = ''; els.tags.dataset.last = ''; drawMain(); if (app.mode === 'play') { drawView(); renderPrice(app) } renderSlow() }
+function renderAll() { lastDraw = lastView = lastPanel = lastSky = -1e9; app.panelKey = ''; els.tags.dataset.last = ''; if (app.mode === 'play') drawMain(); else drawWall(true); if (app.mode === 'play') { drawView(); renderPrice(app) } renderSlow() }
 
 // ---------- scaling ----------
 // The map gets the largest whole-number scale that fits the stage, counted in device pixels.

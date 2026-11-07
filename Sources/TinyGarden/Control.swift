@@ -17,7 +17,7 @@ enum Control {
   static func run(_ cmd: String) -> Int32? {
     switch cmd {
     case "toggle":
-      if others().isEmpty {
+      if runningPIDs().isEmpty {
         log("toggle: not running, launching into play")
         return launch(["open", "-b", bundleID, "--args", "--play"])
       }
@@ -46,6 +46,20 @@ enum Control {
     return NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).filter { $0.processIdentifier != me }
   }
 
+  /// Pids of the running app. LaunchServices can briefly miss a running app, so a process-name match backs it up.
+  static func runningPIDs() -> [pid_t] {
+    let me = ProcessInfo.processInfo.processIdentifier
+    var pids = Set(others().map(\.processIdentifier))
+    let p = Process(), out = Pipe()
+    p.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep"); p.arguments = ["-x", "tiny-garden"]; p.standardOutput = out
+    if (try? p.run()) != nil {
+      p.waitUntilExit()
+      let text = String(data: out.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+      for line in text.split(separator: "\n") { if let v = pid_t(line), v != me { pids.insert(v) } }
+    }
+    return pids.sorted()
+  }
+
   private static func launch(_ argv: [String]) -> Int32 {
     let p = Process()
     p.executableURL = URL(fileURLWithPath: "/usr/bin/env")
@@ -55,13 +69,13 @@ enum Control {
 
   /// Asks the running app to write its window state, then prints it with the window server's view.
   private static func status() -> Int32 {
-    let apps = others()
-    guard !apps.isEmpty else { print("not running"); return 1 }
+    let running = runningPIDs()
+    guard !running.isEmpty else { print("not running"); return 1 }
     try? FileManager.default.removeItem(at: statusFile)
     post(statusNote)
     for _ in 0..<40 where !FileManager.default.fileExists(atPath: statusFile.path) { usleep(50_000) }
     print((try? String(contentsOf: statusFile, encoding: .utf8)) ?? "app did not answer", terminator: "")
-    let pids = Set(apps.map { Int($0.processIdentifier) })
+    let pids = Set(running.map { Int($0) })
     let list = CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as? [[String: Any]] ?? []
     for w in list where pids.contains(w[kCGWindowOwnerPID as String] as? Int ?? -1) {
       let b = w[kCGWindowBounds as String] as? [String: Any] ?? [:]
