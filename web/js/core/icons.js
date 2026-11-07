@@ -1,7 +1,7 @@
 // 12px UI icons and 8px goods as pixel maps in the shared palette (see docs/ART.md).
 // Each string is one row; each character is a palette key ('.' or any unknown key is clear).
 import { P } from './pixel.js';
-import { PAL, UPAL } from './palette.js';
+import { PAL, UPAL, NAME } from './palette.js';
 
 // Resource icons (PAL keys).
 export const ICON = {light:['.....y......','.....y......','..y..y..y...','...y.Y.y....','....YYY.....','yyyYYwYYyyy.','....YYY.....','...y.Y.y....','..y..y..y...','.....y......','.....y......'],
@@ -53,3 +53,8 @@ const memo = (key, make) => cache[key] || (cache[key] = make());
 export const iconURL = k => memo('i:' + k, () => paint(ICON[k], PAL, 12).toDataURL());
 export const uiconURL = k => memo('u:' + k, () => paint(UICON[k], UPAL, 12).toDataURL());
 export const goodsCanvas = k => memo('g:' + k, () => paint(GOODS[k], UPAL, 8));
+
+// HTML snippets for the UI (page 38 ico, uico, chip).
+export const ico = k => `<img src="${iconURL(k)}" alt="">`;
+export const uico = k => `<img src="${uiconURL(k)}" alt="">`;
+export const chip = (k, v, short) => `<span class="chip${short ? ' short' : ''}">${ico(k)}<b>${v}</b> ${NAME[k]}</span>`;

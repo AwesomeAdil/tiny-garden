@@ -19,13 +19,16 @@ export function galInit() {
 }
 const gal = () => GAL || galInit();
 
-const galRot = t => t * GO.spin;
+export const galRot = t => t * GO.spin;
 export const gpos = (q, a, rot) => { const G = gal(), A = a - rot, gx = Math.cos(A) * q, gy = Math.sin(A) * q * GO.tilt, sr = Math.sin(GO.roll), cr = Math.cos(GO.roll); return { x: G.cx + (gx * cr + gy * sr) * G.sc, y: G.cy + (-gx * sr + gy * cr) * G.sc } };
 
 // The star system near map point p at time t, or null.
 export const galAt = (p, t) => { let best = null, bd = 14; GSYS.forEach(g => { const q = gpos(g.q, g.a, galRot(t)), d = Math.hypot(q.x - p.x, q.y - p.y); if (d < bd) { bd = d; best = g } }); return best };
 
 export function blackHole(c, cx, cy, R) { for (let a = 0; a < TAU; a += .02)P(c, Math.cos(a + .8) > -.2 ? '#fff6e0' : '#f5a97f', Math.round(cx + Math.cos(a) * (R + .6)), Math.round(cy + Math.sin(a) * (R + .6))); for (let y = -R + 1; y <= R - 1; y++) { const w = Math.floor(Math.sqrt((R + .2) * (R + .2) - y * y)); P(c, '#030308', cx - w, cy + y, w * 2 + 1, 1) } }
+
+// Forget the last redraw time on ctx, so the next drawGalaxy always paints (use after a view switch).
+export const galInvalidate = ctx => { LAST.delete(ctx) };
 
 // sel is the selected system's name (game.ui.galSel) or null. Redraws at most every 0.1 s per canvas.
 export function drawGalaxy(ctx, t, sel) {

@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>tiny garden</title>
+<link rel="stylesheet" href="style.css">
+<script>
+  // Page errors are listed in #errs, so headless shots (scripts/shot.mjs) can report them.
+  window.__errs = [];
+  const note = m => { window.__errs.push(String(m)); const ul = document.getElementById('errs'); if (ul) { const li = document.createElement('li'); li.className = 'err'; li.textContent = String(m); ul.append(li) } };
+  addEventListener('error', e => note(e.message || 'error'));
+  addEventListener('unhandledrejection', e => note(e.reason && e.reason.message || e.reason));
+</script>
+</head>
+<body class="wallpaper">
+<canvas id="sky"></canvas>
+<div id="app">
+  <div class="dock" id="dock">
+    <div class="grp"><span class="gl">build</span>
+      <button class="px dk" type="button" data-tool="move" aria-pressed="true"><img data-ui="move" alt="">Move<kbd>M</kbd></button>
+      <button class="px dk" type="button" data-tool="rope" aria-pressed="false"><img data-ui="rope" alt="">Rope<kbd>R</kbd></button>
+      <button class="px dk" type="button" data-tool="cut" aria-pressed="false"><img data-ui="cut" alt="">Cut<kbd>C</kbd></button></div>
+    <div class="grp"><span class="gl">spend</span>
+      <button class="px dk shop" type="button" id="shopbtn" aria-pressed="false"><img data-ui="shop" alt="">Shop<kbd>S</kbd></button></div>
+    <div class="grp"><span class="gl">view</span>
+      <button class="px dk" type="button" data-view="planet" aria-pressed="true"><img data-ui="city" alt="">City<kbd>1</kbd></button>
+      <button class="px dk" type="button" data-view="system" aria-pressed="false"><img data-ui="system" alt="">System<kbd>2</kbd></button>
+      <button class="px dk" type="button" data-view="galaxy" aria-pressed="false"><img data-ui="galaxy" alt="">Galaxy<kbd>3</kbd></button></div>
+    <div class="grp"><span class="gl">time</span>
+      <button class="px dk" type="button" data-speed="1" aria-pressed="true"><img data-ui="play" alt="">1×</button>
+      <button class="px dk" type="button" data-speed="4" aria-pressed="false"><img data-ui="fast" alt="">4×</button></div>
+    <div class="grp"><button class="px dk" type="button" id="newbtn" aria-pressed="false"><img data-ui="dice" alt="">New map</button></div>
+    <span class="sp"></span>
+    <span class="brand">tiny <b>garden</b> · esc to leave</span>
+  </div>
+  <div id="main">
+    <div id="left">
+      <div id="stage">
+        <div id="mapbox">
+          <canvas id="map" width="320" height="200" aria-label="Floating islands and a planet linked by rope bridges, with walkers carrying goods between them."></canvas>
+          <div id="tags" aria-hidden="true"></div>
+          <div class="price" id="price" aria-live="polite"></div>
+          <span id="where"></span>
+          <span id="catch">catching up…</span>
+          <span id="playtag" class="px"><b>⌥E</b> PLAY</span>
+          <div id="ask" class="px" hidden role="dialog" aria-label="Start a new map?">
+            <h5><img data-ui="dice" alt="">Start a new map?</h5>
+            <p>A fresh garden with the islands somewhere else. This one is kept as a backup.</p>
+            <div class="acts"><button class="act" type="button" data-ask="yes">New map</button><button class="act alt" type="button" data-ask="no">Keep this one</button></div>
+          </div>
+        </div>
+      </div>
+      <div id="lines">
+        <div class="guide" id="guide"></div>
+        <div class="stockrow" id="stock"></div>
+        <div class="hint" id="hint"></div>
+      </div>
+    </div>
+    <div id="side">
+      <div class="view"><canvas id="view" width="200" height="120" aria-label="A close-up of the selected place."></canvas><span class="lbl" id="vlbl">tiny garden</span><span class="lbl day" id="vday">day 1</span></div>
+      <div id="panel"></div>
+    </div>
+  </div>
+</div>
+<ul id="errs"></ul>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

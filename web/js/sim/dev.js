@@ -1,4 +1,4 @@
-// Dev helpers (page 38 autoNet and skip). Used by tests and web/art.html; not part of normal play.
+// Dev helpers (page 38 autoNet and skip). Used by tests and index.html's ?skip=1; not part of normal play.
 import { RES } from '../core/palette.js';
 import { MAXR } from './content.js';
 import { dist, node, isl, tie } from './world.js';

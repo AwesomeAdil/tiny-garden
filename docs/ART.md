@@ -28,7 +28,7 @@ If the art visibly drifts from these shots, the review fails.
    below). Text is monospace (`ui-monospace, "JetBrains Mono"`).
 5. **Drawing never changes the game.** Each draw function takes its
    `game` or world `w` as an argument and only reads from it. There are no
-   globals. `tests/draw.test.js` and `web/art.html` both check this.
+   globals. `tests/draw.test.js` and `web/index.html?dump=1` both check this.
 
 ## Palette
 
@@ -179,12 +179,21 @@ never by testing an id in code:
 ## Checking your work
 
 ```sh
-node scripts/shot.mjs "view=city&seed=7&skip=1" shots/city.png
+node scripts/shot.mjs "seed=7&mode=play&view=planet&skip=1" shots/city.png 1512,944
 ```
 
-The views are `city`, `system`, `galaxy`, `close` and `square`. You can
-add `&n=<island id>` for a close-up and `&world=1` for the second planet.
+`scripts/shot.mjs` shoots `web/index.html` in standalone mode at the given
+window size (default `1512,944`). The params are `seed`, `mode`
+(`play` or `wallpaper`), `view` (`planet`, `system` or `galaxy`; `city`
+also works), `skip=1`, `world=<index>` and `n=<island id>`, which selects
+an island so the close-up shows it.
 
-Each shot writes the page screenshot and a `-native.png` of the canvas at
-its true size. Compare the native PNG with the reference shots, enlarged
+Each shot writes the page screenshot, a `-native.png` of the 320×200 map
+canvas at its true size and, in play mode, a `-view.png` of the 200×120
+close-up. Compare the native PNGs with the reference shots, enlarged
 with nearest-neighbour. `shots/` is gitignored.
+
+The UI is page 38's game panes at full screen. The map always sits at the
+largest whole-number scale in device pixels, with the sky starfield in the
+margins. The tags and the price tag scale with `--s`, and the dock and side
+panel scale with the whole-number zoom `--ui`.
