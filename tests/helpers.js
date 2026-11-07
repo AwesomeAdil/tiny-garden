@@ -1,12 +1,12 @@
 import { makeWorld, dist, node, tie } from '../web/js/sim/world.js';
 import { cross } from '../web/js/sim/graph.js';
 import { DEF_OCEAN, MAXR } from '../web/js/sim/content.js';
+import { step } from '../web/js/sim/step.js';
+import { ropesAt, slots } from '../web/js/sim/economy.js';
 
 // Replaced by the real newGame in Task 3.
 export function freshGame(seed) { return { worlds: [makeWorld(DEF_OCEAN, seed)] }; }
 
-const ropesAt = (w, id) => w.S.ropes.filter(r => r.a === id || r.b === id).length;
-const slots = n => (n.kind === 'planet' ? 4 : 3) + (n.dock || 0);
 
 // Greedy nearest-reachable tie loop from page 38 autoNet, respecting slots and crossings.
 export function autoNet(w) {
@@ -26,8 +26,8 @@ export function autoNet(w) {
   }
 }
 
-// Advance every world in the game by `seconds` in 0.1 s sub-steps.
-// Until step.js lands (Task 3) this is a no-op beyond the clock.
+// Advance every started world in the game by `seconds` in 0.1 s sub-steps.
+// Task 3 switches this to stepAll (cables).
 export function sim(game, seconds) {
-  for (let t = 0; t < seconds - 1e-9; t += 0.1) game.worlds.forEach(w => { w.S.time += 0.1 });
+  for (let t = 0; t < seconds - 1e-9; t += 0.1) game.worlds.forEach(w => { if (w.started) step(w, 0.1) });
 }
