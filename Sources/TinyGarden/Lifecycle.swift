@@ -76,6 +76,7 @@ final class Lifecycle: NSObject, NSApplicationDelegate {
     case "exit": enter(.wallpaper)
     case "bad-save": log("js says the save is unreadable"); store.quarantine()
     case "new-map": store.archive()
+    case "log": log("web: \((m["msg"] as? String ?? "?").prefix(500))")
     case let t: log("web: unknown message \(t ?? "nil")")
     }
   }

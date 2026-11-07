@@ -3,7 +3,8 @@
 // JS -> Swift: webkit.messageHandlers.garden.postMessage({type:'ready'|'save'|'exit'|'bad-save'|'new-map', ...}).
 // Standalone (no webkit, for dev and shots): boots from ?seed&mode&view&skip&world&n&dump.
 import { newGame, advance } from './sim/game.js';
-import { serialize, deserialize } from './sim/save.js';
+import { serialize } from './sim/save.js';
+import { trialLoad } from './boot.js';
 import { skip } from './sim/dev.js';
 import { startClock, clockStep, clockSavedAt } from './sim/clock.js';
 import { node } from './sim/world.js';
@@ -219,7 +220,8 @@ window.garden = {
   boot(saveObj, mode, nowMs = Date.now(), opts = {}) {
     if (opts && typeof opts.topInset === 'number' && opts.topInset >= 0) topInset = opts.topInset;
     let game = null;
-    if (saveObj != null) { try { game = deserialize(saveObj) } catch (e) { game = null } if (!game) post({ type: 'bad-save' }) }
+    // A save that won't parse, or parses but throws when stepped or drawn (boot.js), is set aside for a new game.
+    if (saveObj != null) { game = trialLoad(saveObj, () => new PixCtx(688, 288)); if (!game) post({ type: 'bad-save' }) }
     if (!game) { game = newGame(randSeed()); game.savedAt = nowMs }
     start(game, mode, nowMs);
   },

@@ -24,6 +24,18 @@ export function serialize(game, nowMs) {
   });
 }
 
+// Built to grow: a content update may retire an island. Its node goes, with every rope that touches it, and
+// anything that still names it (found, the selection), so an old save keeps playing instead of breaking.
+function prune(S, def) {
+  const ok = n => n && typeof n === 'object' && (n.kind === 'planet' || (n.kind === 'island' && Object.hasOwn(def.isl, n.id)));
+  S.nodes = S.nodes.filter(ok);
+  const ids = new Set(S.nodes.map(n => n.id));
+  S.ropes = S.ropes.filter(r => r && ids.has(r.a) && ids.has(r.b) && r.a !== r.b);
+  S.found = new Set([...S.found].filter(id => ids.has(id)));
+  const sel = S.sel, keep = sel && (sel.t === 'node' ? ids.has(sel.id) : sel.t === 'rope' ? S.ropes.some(r => r.id === sel.id) : false);
+  if (!keep) S.sel = { t: 'node', id: 'planet' };
+}
+
 // Returns a Game, or null for anything unusable. Never throws.
 export function deserialize(obj, defs = WORLD_DEFS) {
   try {
@@ -36,6 +48,7 @@ export function deserialize(obj, defs = WORLD_DEFS) {
       if (!sw || sw.key !== def.key || !sw.S || !sw.POS) throw new Error('world mismatch');
       const S = { ...sw.S, found: new Set(sw.S.found) };
       if (!Array.isArray(S.nodes) || !Array.isArray(S.ropes) || typeof S.time !== 'number') throw new Error('bad S');
+      prune(S, def);
       const hub = S.nodes.find(n => n.kind === 'planet');
       if (!hub) throw new Error('no hub');
       const w = { def, POS: sw.POS, S, hub, TANG: new Set(), HOP: {}, started: !!sw.started, events: [] };
@@ -48,6 +61,8 @@ export function deserialize(obj, defs = WORLD_DEFS) {
       w.TANG = tangled(w); allPairs(w);
       worlds.push(w);
     }
+    // A cable joins two worlds by index; one that points anywhere else would break the system step.
+    if (!obj.cables.every(cb => cb && typeof cb === 'object' && [cb.a, cb.b].every(i => Number.isInteger(i) && i >= 0 && i < worlds.length))) return null;
     // Fields added to ui after v1 get their defaults here (no version bump: migrate stays identity).
     if (typeof obj.ui.names !== 'boolean') obj.ui.names = true;
     return { seed: obj.seed, worlds, cables: obj.cables, ui: obj.ui, savedAt: typeof obj.savedAt === 'number' ? obj.savedAt : 0 };

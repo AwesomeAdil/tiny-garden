@@ -83,3 +83,37 @@ test('names are on by default, survive a round trip, and old saves get the defau
   assert.equal(deserialize(old).ui.names, true);
   assert.deepEqual(migrate(old), old, 'no new save version: migrate stays identity');
 });
+
+test('a cable that points outside the worlds is refused', () => {
+  const o = trip(serialize(mk(), 1));
+  for (const cb of [{ a: 0, b: 9 }, { a: -1, b: 1 }, { a: 0, b: 1.5 }, { a: 'x', b: 1 }, null])
+    assert.equal(deserialize({ ...o, cables: [cb && { u: 0, dir: 0, load: [], blocked: false, ...cb }] }), null, JSON.stringify(cb));
+  assert.ok(deserialize({ ...o, cables: [{ a: 0, b: 1, u: 0, dir: 0, load: [], blocked: false }] }));
+});
+
+test('islands the content no longer has are dropped with their ropes, and the game keeps running', () => {
+  const g = mk(), o = trip(serialize(g, 1)), S = o.worlds[0].S;
+  const gone = S.nodes.find(n => n.kind === 'island' && S.ropes.some(r => r.a === n.id || r.b === n.id));
+  const before = S.ropes.length, touching = S.ropes.filter(r => r.a === gone.id || r.b === gone.id).length;
+  // As if a content update retired this island: its id is no longer in def.isl.
+  S.ropes.forEach(r => { if (r.a === gone.id) r.a = 'retired'; if (r.b === gone.id) r.b = 'retired' });
+  gone.id = 'retired';
+  S.found.push('retired'); S.sel = { t: 'node', id: 'retired' };
+  S.ropes.push({ id: 999, a: 'planet', b: 'nowhere', len: 50, u: 0, dir: 0, load: [], next: 0 });
+  const back = deserialize(o);
+  assert.ok(back);
+  const w = back.worlds[0];
+  assert.ok(!w.S.nodes.some(n => n.id === 'retired'));
+  assert.ok(!w.S.ropes.some(r => r.a === 'retired' || r.b === 'retired' || r.b === 'nowhere'));
+  assert.equal(w.S.ropes.length, before - touching);
+  assert.ok(!w.S.found.has('retired'));
+  assert.deepEqual(w.S.sel, { t: 'node', id: 'planet' });
+  advance(back, 60, 'wallpaper');
+});
+
+test('a selected rope that was dropped clears the selection', () => {
+  const o = trip(serialize(mk(), 1)), S = o.worlds[0].S;
+  S.ropes.push({ id: 998, a: 'planet', b: 'nowhere', len: 50, u: 0, dir: 0, load: [], next: 0 });
+  S.sel = { t: 'rope', id: 998 };
+  assert.deepEqual(deserialize(o).worlds[0].S.sel, { t: 'node', id: 'planet' });
+});

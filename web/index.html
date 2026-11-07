@@ -6,10 +6,14 @@
 <title>tiny garden</title>
 <link rel="stylesheet" href="style.css">
 <script>
-  // Page errors are listed in #errs, so headless shots (scripts/shot.mjs) can report them.
+  // Page errors are listed in #errs, so headless shots (scripts/shot.mjs) can report them, and in the app they go
+  // to Swift's log ({type:'log'}). The same message is forwarded at most once a minute, so a frame that throws
+  // every tick can't flood the log.
   window.__errs = [];
-  const note = m => { window.__errs.push(String(m)); const ul = document.getElementById('errs'); if (ul) { const li = document.createElement('li'); li.className = 'err'; li.textContent = String(m); ul.append(li) } };
-  addEventListener('error', e => note(e.message || 'error'));
+  const sent = new Map();
+  const forward = m => { const now = Date.now(); if (now - (sent.get(m) || -1e9) < 60000) return; sent.set(m, now); try { window.webkit?.messageHandlers?.garden?.postMessage({ type: 'log', msg: m.slice(0, 500) }) } catch (e) {} };
+  const note = m => { m = String(m); forward(m); if (window.__errs.length >= 100) return; window.__errs.push(m); const ul = document.getElementById('errs'); if (ul) { const li = document.createElement('li'); li.className = 'err'; li.textContent = m; ul.append(li) } };
+  addEventListener('error', e => note((e.message || 'error') + (e.filename ? ' at ' + e.filename.replace(/^.*\/web\//, '').replace(/^garden:\/\/app\//, '') + ':' + e.lineno : '')));
   addEventListener('unhandledrejection', e => note(e.reason && e.reason.message || e.reason));
 </script>
 </head>
