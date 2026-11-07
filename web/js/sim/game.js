@@ -4,13 +4,15 @@ import { stepAll } from './system.js';
 
 const STEP = .1, MAX_GAP = 43200;
 
+export function freshWorld(def, seed, started) {
+  const w = makeWorld(def, seed + def.seedOffset);
+  tie(w, w.hub, node(w, def.start));
+  w.started = started;
+  return w;
+}
+
 export function newGame(seed, defs = WORLD_DEFS, savedAt = 0) {
-  const worlds = defs.map((def, i) => {
-    const w = makeWorld(def, seed + def.seedOffset);
-    tie(w, w.hub, node(w, def.start));
-    w.started = i === 0;
-    return w;
-  });
+  const worlds = defs.map((def, i) => freshWorld(def, seed, i === 0));
   return { seed, worlds, cables: [], ui: { view: 'planet', world: 0, speed: 1, pri: 'auto', sysSel: null, galSel: null }, savedAt };
 }
 

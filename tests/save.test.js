@@ -57,5 +57,19 @@ test('garbage, wrong version and empty saves are refused', () => {
 test('migrate is identity at v1 and defs can be supplied', () => {
   const o = trip(serialize(mk(), 1));
   assert.deepEqual(migrate(o), o);
+});
+
+test('worlds added to content later are appended fresh; mismatches are refused', () => {
+  const g = mk(), o = trip(serialize(g, 1));
+  const extra = { ...WORLD_DEFS[1], key: 'test', seedOffset: 3, next: null };
+  const back = deserialize(o, [...WORLD_DEFS, extra]);
+  assert.equal(back.worlds.length, 3);
+  assert.equal(back.worlds[2].started, false);
+  assert.equal(back.worlds[2].def, extra);
+  assert.ok(back.worlds[2].S.ropes.some(r => r.a === 'planet' && r.b === extra.start));
+  const a = serialize(back, 1), b = serialize(g, 1);
+  assert.deepEqual(a.worlds.slice(0, 2), b.worlds);
+  assert.deepEqual(a.cables, b.cables);
+  assert.equal(deserialize({ ...o, worlds: [o.worlds[1], o.worlds[0]] }, [...WORLD_DEFS, extra]), null);
   assert.equal(deserialize(o, WORLD_DEFS.slice(0, 1)), null);
 });

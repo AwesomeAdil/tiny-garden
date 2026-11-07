@@ -1,4 +1,5 @@
 import { WORLD_DEFS } from './content.js';
+import { freshWorld } from './game.js';
 import { tangled, allPairs } from './graph.js';
 
 export const SAVE_VERSION = 1;
@@ -28,7 +29,7 @@ export function deserialize(obj, defs = WORLD_DEFS) {
   try {
     if (!obj || typeof obj !== 'object') return null;
     obj = migrate(plain(obj));
-    if (!obj || obj.v !== SAVE_VERSION || !Array.isArray(obj.worlds) || obj.worlds.length !== defs.length) return null;
+    if (!obj || obj.v !== SAVE_VERSION || !Array.isArray(obj.worlds) || !obj.worlds.length || obj.worlds.length > defs.length) return null;
     if (typeof obj.seed !== 'number' || !Array.isArray(obj.cables) || !obj.ui || typeof obj.ui !== 'object') return null;
     const worlds = obj.worlds.map((sw, i) => {
       const def = defs[i];
@@ -41,6 +42,12 @@ export function deserialize(obj, defs = WORLD_DEFS) {
       w.TANG = tangled(w); allPairs(w);
       return w;
     });
+    // Worlds added to content since this save was written start fresh and unstarted.
+    for (let i = worlds.length; i < defs.length; i++) {
+      const w = freshWorld(defs[i], obj.seed, false);
+      w.TANG = tangled(w); allPairs(w);
+      worlds.push(w);
+    }
     return { seed: obj.seed, worlds, cables: obj.cables, ui: obj.ui, savedAt: typeof obj.savedAt === 'number' ? obj.savedAt : 0 };
   } catch (e) {
     return null;
