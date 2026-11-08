@@ -3,7 +3,7 @@ import { RES } from '../core/palette.js';
 import { SYS_EXTRA } from './content.js';
 import { isl } from './world.js';
 import { wants } from './economy.js';
-import { step } from './step.js';
+import { step } from './flow.js';
 
 const SC = [160, 100], EVENT_CAP = 50;
 
