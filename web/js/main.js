@@ -170,7 +170,8 @@ function layout() {
   Object.assign(els.mapbox.style, { left: ox / dpr + 'px', top: oy / dpr + 'px', width: mw / dpr + 'px', height: mh / dpr + 'px' });
   // Overlay text (tags, price) keeps the city's size in every view, so it doesn't jump on a view switch.
   root.setProperty('--inset', (app.mode === 'play' ? 0 : Math.max(0, topInset - r.top - oy / dpr)) + 'px');
-  const sc = s; root.setProperty('--s', String(Math.max(1, Math.ceil(sc / 2 - .5)) / dpr));
+  // The finer world scale is for the pixel art, not UI text: overlay text keeps v1's size from the old city scale.
+  const uiScale = Math.max(1, Math.floor(Math.min(dW / 320, dH / 200))); root.setProperty('--s', String(Math.max(1, Math.ceil(uiScale / 2 - .5)) / dpr));
   // Names: pixel text with u device pixels per font pixel (3 at the wallpaper's 5x), on a canvas over the map.
   const u = Math.max(2, Math.min(4, Math.round(s * .6))), nw = Math.ceil(mw / u), nh = Math.ceil(mh / u);
   if (app.nameU !== u || art.w !== art.namesW || art.h !== art.namesH) { app.namesPrev = null; art.namesW = art.w; art.namesH = art.h }

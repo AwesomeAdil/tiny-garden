@@ -54,8 +54,7 @@ export function renderNames(app) {
     let items = [];
     if (gal) { const rot = galShownRot(); if (rot !== null) items = GSYS.map(g => { const q = gpos(g.q, g.a, rot), t = g.name.toUpperCase(); return { id: g.name, ax: q.x, ay: q.y, up: galAbove(q.x, q.y), t, col: g.ours ? NAMEC.home : NAMEC.star, lead: g.ours ? NAMEC.leadHome : NAMEC.lead, ...box(t) } }) }
     else items = sysSpots(app.game, Wn, Hn).map(q => { const on = q.p.w && q.p.w.started; return { id: q.p.name, ax: q.x, ay: q.y, up: q.up, t: q.p.name, col: on ? NAMEC.world : NAMEC.far, lead: on ? NAMEC.leadHome : NAMEC.lead, ...box(q.p.name) } });
-    const wh = app.els.where, dpr = window.devicePixelRatio || 1, block = wh && wh.offsetWidth ? [{ x: 0, y: 0, w: Math.ceil((wh.offsetLeft + wh.offsetWidth) * dpr / s) + 2, h: Math.ceil((wh.offsetTop + wh.offsetHeight) * dpr / s) + 2 }] : [];
-    const m = artMask(art.pix.px, Wn, Hn, gal ? 36 : 60, gal ? 6 : 2), out = placeNames(items, m, { margin: Math.ceil(24 / s), gap: 3, block, prev: app.namesPrev });
+    const m = artMask(art.pix.px, Wn, Hn, gal ? 36 : 60, gal ? 6 : 2), out = placeNames(items, m, { margin: Math.ceil(24 / s), gap: 3, prev: app.namesPrev });
     app.namesPrev = out;
     todo = out.map((o, i) => o && { ...o, t: items[i].t, col: items[i].col, lead: items[i].lead }).filter(Boolean);
   }
