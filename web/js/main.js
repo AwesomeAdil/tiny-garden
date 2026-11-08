@@ -6,7 +6,7 @@
 // Standalone (no webkit, for dev and shots): boots from ?seed&mode&view&skip&world&n&dump, and ?dev=1&devact=grow,…
 import { newGame, frame } from './sim/game.js';
 import { serialize } from './sim/save.js';
-import { trialLoad, prepare } from './boot.js';
+import { bootGame, prepare } from './boot.js';
 import { devSession, tagDev } from './devmode.js';
 import { skip } from './sim/dev.js';
 import { renderDevbar, wireDevbar, devAction } from './ui/devpanel.js';
@@ -24,7 +24,7 @@ import { planetView, islandView, dawn } from './draw/closeup.js';
 import { renderTags, invalidateTags } from './ui/tags.js';
 import { renderPanel, wirePanel } from './ui/panel.js';
 import { renderGuide, idleHint, drainEvents } from './ui/guide.js';
-import { wireDock, syncDock, setSpeed, askNewMap } from './ui/dock.js';
+import { wireDock, syncDock, setSpeed, askNewMap, askKind } from './ui/dock.js';
 import { wireInput } from './ui/input.js';
 import { wireCard, openCard, closeCard, renderTray } from './ui/card.js';
 import { PixCtx } from './core/pixctx.js';
@@ -48,7 +48,7 @@ const bridge = () => window.webkit?.messageHandlers?.garden;
 const raw = msg => { try { bridge()?.postMessage(msg) } catch (e) { /* no host */ } };
 const native = !!bridge();
 // Developer mode's sandbox (devmode.js): boots go through garden.boot, so the real game comes back on the normal path.
-const dev = devSession({ native, post: raw, snapshot: () => snapshot(), boot: (o, mode, opts) => window.garden.boot(o, mode, Date.now(), opts) });
+const dev = devSession({ native, post: raw, snapshot: () => snapshot(), boot: (o, mode, opts) => window.garden.boot(o, mode, Date.now(), opts), reload: () => location.reload() });
 const post = msg => dev.send(msg);
 
 const els = { sky: $('sky'), stage: $('stage'), mapbox: $('mapbox'), map: $('map'), names: $('names'), tags: $('tags'), card: $('card'), catch: $('catch'), ask: $('ask'),
@@ -64,7 +64,9 @@ const app = {
   exit: () => native ? post({ type: 'exit' }) : setMode('wallpaper'),
   // ⌥⇧D: on in play mode only; the real game's speed goes back to 1x first, so the kept copy boots as it was.
   toggleDev: () => { if (!app.game || app.mode !== 'play') return false; if (dev.on) return dev.leave('play'); setSpeed(app, 1); return dev.enter() },
-  newMap: () => { post({ type: 'new-map' }); start(newGame(randSeed()), 'play', Date.now()); save() },
+  // kind is the prompt's ('map' or 'dev'): it must still match the mode, and nothing new is made while the sandbox
+  // is being asked for, so a stale prompt can never replace the real garden.
+  newMap: kind => { if (kind !== askKind(app) || dev.pending) return false; post({ type: 'new-map' }); start(newGame(randSeed()), 'play', Date.now()); save(); return true },
 };
 window.__app = app; // dev handle for the console and scripted checks
 const skyCtx = els.sky.getContext('2d'), tile = document.createElement('canvas'); tile.width = W; tile.height = H;
@@ -250,7 +252,8 @@ function setMode(m) {
 function start(game, mode, nowMs) {
   prepare(game, nowMs);
   clock = startClock(nowMs, game.savedAt || nowMs); clock.lastMs = Date.now(); lastSave = clock.lastMs;
-  Object.assign(app, { game, tool: 'move', drag: null, pointer: null, armedGift: null, panelKey: '', hintUntil: 0 }); closeCard(app); els.tray.dataset.last = '';
+  // Every boot (a new map, entering or leaving dev) starts clean: no prompt, card, rename or armed gift carries over.
+  Object.assign(app, { game, tool: 'move', drag: null, pointer: null, armedGift: null, renaming: null, panelKey: '', hintUntil: 0 }); closeCard(app); askNewMap(app, false); els.tray.dataset.last = '';
   app.devKey = ''; syncDock(app); setMode(mode);
 }
 
@@ -259,19 +262,11 @@ window.garden = {
     opts = opts || {};
     if (typeof opts.topInset === 'number' && opts.topInset >= 0) topInset = opts.topInset;
     // First, so everything this boot sends (bad-save, the first save) is tagged for the right file.
-    dev.booted(!!opts.dev);
-    let game = null;
+    // A sandbox boot nobody asked for (a late answer after a cancel) is ignored: the real game keeps running.
+    if (!dev.booted(!!opts.dev)) return false;
     // A save that won't parse, or parses but throws when stepped or drawn (boot.js), is set aside for a new game.
-    if (saveObj != null) {
-      const r = trialLoad(saveObj, () => new PixCtx(688, 288));
-      if (!r) post({ type: 'bad-save' });
-      else if (r.old) post({ type: 'old-save' });
-      else game = r.game;
-    }
-    if (!game) { game = newGame(randSeed()); game.savedAt = nowMs }
-    // The sandbox stands still while dev is off: no catch-up when it comes back.
-    if (opts.dev) game.savedAt = nowMs;
-    start(game, mode, nowMs);
+    start(bootGame(saveObj, nowMs, opts, { post, makeCtx: () => new PixCtx(688, 288), seed: randSeed }), mode, nowMs);
+    return true;
   },
   setMode,
   // Pausing (screens asleep, session switched away, window hidden) also saves, so a sleep that never wakes loses nothing.

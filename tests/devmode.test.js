@@ -7,7 +7,7 @@ globalThis.ImageData ??= class { constructor(w, h) { this.width = w; this.height
 const { devSession, tagDev } = await import('../web/js/devmode.js');
 const { newGame, frame } = await import('../web/js/sim/game.js');
 const { serialize } = await import('../web/js/sim/save.js');
-const { trialLoad, prepare } = await import('../web/js/boot.js');
+const { bootGame, prepare } = await import('../web/js/boot.js');
 const { startClock, clockSavedAt } = await import('../web/js/sim/clock.js');
 const { skip, devGrow, devCable } = await import('../web/js/sim/dev.js');
 const { isl } = await import('../web/js/sim/world.js');
@@ -15,8 +15,9 @@ const { PixCtx } = await import('../web/js/core/pixctx.js');
 
 const trip = o => JSON.parse(JSON.stringify(o));
 
-// A stand-in for main.js: one live game and clock, booted the way garden.boot boots (trialLoad, prepare, a clock
-// from the save's savedAt), with every message the page would send kept in `sent`.
+// A stand-in for main.js: one live game and clock, booted the way garden.boot boots (the dev session's say, the real
+// bootGame and prepare, a clock from the save's savedAt), with every message the page would send kept in `sent`.
+// tests/page.test.js drives the real page in Chrome.
 function page({ native, game, now = 1e12 }) {
   const p = { sent: [], now, game, clock: startClock(now, now), boots: [] };
   p.snapshot = () => serialize(p.game, clockSavedAt(p.clock));
@@ -25,13 +26,12 @@ function page({ native, game, now = 1e12 }) {
     post: m => p.sent.push(trip(m)),
     snapshot: p.snapshot,
     boot: (obj, mode, opts) => p.boot(obj, mode, opts),
+    reload: () => { p.reloads = (p.reloads || 0) + 1 },
   });
   p.boot = (obj, mode, opts = {}) => {
     p.boots.push({ obj: obj && trip(obj), mode, opts });
-    p.dev.booted(!!opts.dev);
-    let g = obj != null ? trialLoad(obj, () => new PixCtx(688, 288))?.game : null;
-    if (!g) { g = newGame(99); g.savedAt = p.now }
-    if (opts.dev) g.savedAt = p.now; // a sandbox has no catch-up
+    if (!p.dev.booted(!!opts.dev)) return false;
+    const g = bootGame(obj, p.now, opts, { post: m => p.dev.send(m), makeCtx: () => new PixCtx(688, 288), seed: () => 99 });
     prepare(g, p.now); p.game = g; p.clock = startClock(p.now, g.savedAt || p.now);
     p.dev.send({ type: 'save', save: p.snapshot() }); // start() -> setMode() saves at once
   };
@@ -129,4 +129,41 @@ test('main.js sends every message through the dev session, so none can skip the 
   assert.match(src, /const post = msg => dev\.send\(msg\)/);
   assert.equal((src.match(/\braw\b/g) || []).length, 2, 'the raw bridge is defined once and only handed to the dev session');
   assert.match(src, /devSession\(\{ native, post: raw,/);
+});
+
+test('cancel drops the kept copy, and a late sandbox boot after it is ignored', () => {
+  const p = page({ native: true, game: realGame() }), seed = p.game.seed;
+  p.dev.enter(); p.dev.cancel();
+  assert.equal(p.dev.stash, null);
+  assert.equal(p.boot(null, 'play', { dev: true }), false, 'Swift answered after the cancel');
+  assert.equal(p.dev.on, false); assert.equal(p.game.seed, seed, 'the real game keeps running');
+  p.save(); assert.equal('dev' in p.sent.at(-1), false);
+});
+
+test('a sandbox boot with no enter pending is refused', () => {
+  const p = page({ native: true, game: realGame() });
+  assert.equal(p.dev.booted(true), false);
+  assert.equal(p.dev.on, false);
+});
+
+test('leaving with no kept copy never boots null: Swift reboots the real save, and the sandbox saves stay dev:true until it does', () => {
+  const p = page({ native: true, game: realGame() });
+  p.dev.enter(); p.boot(null, 'play', { dev: true });
+  p.dev.stash = null; // however it got lost
+  const boots = p.boots.length; p.sent.length = 0;
+  assert.equal(p.dev.leave('wallpaper'), true);
+  assert.equal(p.boots.length, boots, 'no boot of null');
+  assert.equal(p.sent[0].dev, true);
+  assert.deepEqual(p.sent[1], { type: 'dev', on: false, reload: true });
+  p.save(); assert.equal(p.sent.at(-1).dev, true, 'the sandbox on screen still saves to save.dev.json');
+  p.boot(realGame() && serialize(realGame(), 1e12), 'wallpaper', {}); // Swift: garden.boot(<save.json>, ...)
+  p.save(); assert.equal('dev' in p.sent.at(-1), false);
+});
+
+test('standalone: leaving with no kept copy reloads the page instead of booting null', () => {
+  const p = page({ native: false, game: realGame() });
+  p.dev.enter(); p.dev.stash = null;
+  const boots = p.boots.length;
+  p.dev.leave('play');
+  assert.equal(p.boots.length, boots); assert.equal(p.reloads, 1);
 });

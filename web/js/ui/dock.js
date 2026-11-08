@@ -60,14 +60,23 @@ const ASK = {
   map: ['Start a new map?', 'A fresh garden with the islands somewhere else. This one is kept as a backup.', 'New map'],
   dev: ['Start a new sandbox?', 'A fresh dev garden in save.dev.json. Your real garden is not touched.', 'New sandbox'],
 };
+// Which prompt this mode asks: 'dev' (a new sandbox) or 'map' (a new real map).
+export const askKind = app => app.dev && app.dev.on ? 'dev' : 'map';
+// A prompt remembers its kind (app.askKind); confirming one that no longer matches the mode does nothing, so a
+// "New sandbox?" can never make a new real map, nor a "New map?" a sandbox.
 export function askNewMap(app, on) {
-  app.asking = on; app.askArmed = on; app.els.ask.hidden = !on; press(app.els.newbtn, on);
+  app.asking = on; app.askArmed = on; app.askKind = on ? askKind(app) : null; app.els.ask.hidden = !on; press(app.els.newbtn, on);
   if (!on) return;
-  const q = s => app.els.ask.querySelector(s), [t, p, y] = ASK[app.dev && app.dev.on ? 'dev' : 'map'];
+  const q = s => app.els.ask.querySelector(s), [t, p, y] = ASK[app.askKind];
   q('#askt').textContent = t; q('#askp').textContent = p; q('[data-ask="yes"]').textContent = y;
   q('[data-ask="yes"]').focus();
 }
-export function confirmNewMap(app) { if (!app.askArmed) return; askNewMap(app, false); app.newMap() }
+export function confirmNewMap(app) {
+  if (!app.askArmed) return;
+  const kind = app.askKind;
+  askNewMap(app, false);
+  if (kind === askKind(app)) app.newMap(kind);
+}
 
 export function onEsc(app) {
   if (app.asking) return askNewMap(app, false);

@@ -15,30 +15,42 @@ export const tagDev = (msg, on) => on ? { ...msg, dev: true } : msg;
 
 // io: { native, post(msg) (the raw bridge), snapshot() (the live game's save object), boot(saveObj, mode, opts) }.
 export function devSession(io) {
-  const s = { on: false, pending: false, stash: null, mem: null };
+  // awaitReal: dev has ended with no kept copy, and Swift is rebooting the real save; until it does, the sandbox
+  // still on screen keeps saving to save.dev.json.
+  const s = { on: false, pending: false, awaitReal: false, stash: null, mem: null };
   // Every page -> Swift message goes through here.
-  s.send = msg => io.post(tagDev(msg, s.on));
+  s.send = msg => io.post(tagDev(msg, s.on || s.awaitReal));
   s.enter = () => {
     if (s.on || s.pending) return false;
     const real = io.snapshot();
     s.stash = real;
     io.post({ type: 'save', save: real });
-    if (io.native) { s.pending = true; io.post({ type: 'dev', on: true }) }
+    s.pending = true;
+    if (io.native) io.post({ type: 'dev', on: true });
     else io.boot(s.mem, 'play', { dev: true });
     return true;
   };
-  // garden.boot calls this first: a dev boot turns dev on; any other boot (the restore, a page reload) ends it.
-  s.booted = dev => { s.pending = false; s.on = !!dev; if (!dev) s.stash = null };
-  // A switch to the wallpaper before Swift answered.
-  s.cancel = () => { s.pending = false };
+  // garden.boot calls this first and boots only if it returns true. A dev boot is taken only as the answer to a
+  // pending enter; any other boot (the restore, a page reload, Swift's reboot of the real save) ends dev.
+  s.booted = dev => {
+    if (dev && !s.pending) return false;
+    s.pending = false; s.on = !!dev;
+    if (!dev) { s.stash = null; s.awaitReal = false }
+    return true;
+  };
+  // A switch to the wallpaper before Swift answered: the request and its kept copy are dropped.
+  s.cancel = () => { s.pending = false; s.stash = null };
   s.leave = mode => {
     if (!s.on) return false;
     const sand = io.snapshot();
     s.send({ type: 'save', save: sand });
     s.mem = sand;
-    io.post({ type: 'dev', on: false });
     const real = s.stash;
     s.on = false; s.stash = null;
+    // Never boot null here (that would be a new game in the real save's place): with no kept copy, Swift reboots
+    // the real save.json instead (standalone: the page reloads).
+    if (!real) { s.awaitReal = true; io.post({ type: 'dev', on: false, reload: true }); if (!io.native && io.reload) io.reload(); return true }
+    io.post({ type: 'dev', on: false });
     io.boot(real, mode, {});
     return true;
   };
