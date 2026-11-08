@@ -73,17 +73,19 @@ function gather(w, r, X, O, max, take) {
     i++;
   }
   if (!X.out) return got;
+  const start = r.next; let took = false;
   for (let j = 0; j < GOODS.length && got.length < max; j++) {
-    const k = GOODS[(r.next + j) % GOODS.length];
+    const k = GOODS[(start + j) % GOODS.length];
     while (got.length < max && X.out[k] >= 1) {
       const d = demandFor(w, X, k);
       if (d === null || nextHop(w, X.id, d) !== O.id) break;
       const x = { k, d };
       got.push(x);
       if (!take) break;
-      X.out[k]--; r.load.push(x); r.next = (r.next + j + 1) % GOODS.length;
+      X.out[k]--; r.load.push(x); took = true;
     }
   }
+  if (took) r.next = (start + 1) % GOODS.length;
   return got;
 }
 

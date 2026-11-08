@@ -4,6 +4,7 @@ import { makeWorld, node, isl, tie, piers } from '../web/js/sim/world.js';
 import { DEF_OCEAN, STAGE_COST, OUTBOX } from '../web/js/sim/content.js';
 import { GOODS } from '../web/js/core/palette.js';
 import { step, stalls, cost, need } from '../web/js/sim/flow.js';
+import { grow } from '../web/js/sim/grow.js';
 
 // A world with no ropes, and every island parked off to the side so hand-placed ones sit where a test puts them.
 const bare = seed => {
@@ -87,14 +88,30 @@ test('nothing is stored on islands beyond the outbox', () => {
   Object.entries(spots).forEach(([id, [x, y]]) => at(w, id, x, y));
   for (const arm of [['home', 'frost', 'ember'], ['anvil', 'verdant', 'amethyst']]) arm.forEach((id, i) => tie(w, i ? node(w, arm[i - 1]) : w.hub, node(w, id)));
   for (const n of w.S.nodes) assert.ok(w.S.ropes.filter(r => r.a === n.id || r.b === n.id).length <= piers(n));
-  let moves = 0;
+  // the middle islands are fully grown, so they need nothing and everything passes through their relay
+  node(w, 'frost').stage = 4; node(w, 'verdant').stage = 4;
+  let moves = 0, relayed = false;
   run(w, 7200, () => {
+    grow(w);
     for (const n of w.S.nodes) {
       if (n.out) for (const k of GOODS) assert.ok(n.out[k] <= OUTBOX, `${n.id} out ${k}=${n.out[k]}`);
       assert.ok(n.relay.length <= 3 * piers(n), `${n.id} relay ${n.relay.length}`);
+      if (n.relay.length > 0) relayed = true;
     }
     if (w.S.ropes.some(r => r.dir !== 0)) moves++;
   });
   assert.ok(moves > 0);
+  assert.ok(relayed, 'some relay queue should have been non-empty');
   assert.ok(isl(w).some(n => GOODS.some(k => n.paid[k] > 0)));
+});
+
+test('an island making two goods loads both in one batch', () => {
+  const w = bare(3);
+  const h = at(w, 'home', 200, 150), e = at(w, 'ember', 300, 150);
+  h.sends = 'water'; h.satisfied.push('water');
+  h.out.water = 2; h.out.stone = 2;
+  const r = tie(w, h, e);
+  step(w, .1);
+  const ks = r.load.map(x => x.k);
+  assert.ok(ks.includes('water') && ks.includes('stone'), `loaded ${ks}`);
 });

@@ -4,6 +4,7 @@ import { SYS_EXTRA } from './content.js';
 import { isl } from './world.js';
 import { wants } from './economy.js';
 import { step } from './flow.js';
+import { grow } from './grow.js';
 
 const SC = [160, 100], EVENT_CAP = 50;
 
@@ -69,6 +70,7 @@ export function stepAll(game, dt) {
   game.worlds.forEach(w => {
     if (!w.started) return;
     step(w, dt);
+    grow(w);
     if (w.events.length > EVENT_CAP) w.events.splice(0, w.events.length - EVENT_CAP);
   });
   stepCables(game, dt);
