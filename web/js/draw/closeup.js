@@ -5,7 +5,7 @@
 import { TAU, P, B8, NN, pickR, rngf, worldView } from '../core/pixel.js';
 import { PixCtx } from '../core/pixctx.js';
 import { KD, R_ARM, R_IN, R_CORE, R_TEAL } from '../core/palette.js';
-import { STY, hazed, skyLayer, twinkle, sun, planetLayer, glowAt, getSprite, drawIsland, isleBob } from './kit.js';
+import { STY, hazed, skyLayer, twinkle, sun, planetLayer, glowAt, getSprite, drawIsland, isleBob, islandSpec, islandSprite } from './kit.js';
 import { cityBackground, townLayout, citySky } from './city.js';
 
 const VW = 200, VH = 120;
@@ -88,14 +88,40 @@ export function dawn(c, t, W = VW, H = VH, rt = t) {
   c.putImageData(img, 0, 0); D.DST.forEach(s => { if (Math.hypot(s.x - PCX, s.y - PCY) < PR + 5 || Math.sin(t * .8 + s.ph) < -.55) return; c.fillStyle = s.v > .82 ? KD.flamingo : s.v > .55 ? KD.text : KD.blue; c.fillRect(Math.round(s.x), Math.round(s.y), 1, 1) });
 }
 
-// Island n of world w: the city's own near-band sprite (identical to what the city draws), zoomed whole over a soft
-// horizon under the stars. Goods are never drawn.
+// Island n of world w: its kit sprite at the close-up scale (islandFrame), zoomed whole just above a soft horizon
+// under the stars. Goods are never drawn.
 export function islandView(c, w, n, t, W = VW, H = VH) {
   const B = remember(['isl', W, H, sky2(w, 89), CLOSE.style].join(), () => horizonBack(W, H, sky2(w, 89), CLOSE.style));
   // The zoom needs PixCtx's blitZoom, which a canvas context lacks: compose in a scratch PixCtx, then put it on c.
   const key = W + 'x' + H, S = SCRATCH.get(key) || SCRATCH.set(key, new PixCtx(W, H)).get(key);
   S.px.set(B.px.px); twinkle(S, B.tw, t);
-  const I = getSprite(w, n, 'near', worldView(W, H).k), z = zoomFor(I.w, I.h, W, H), x = Math.round(W / 2), y = Math.round(H * .46 - I.h * z / 2 + I.oy * z) + isleBob(n, t) * z;
-  drawIslandZoom(S, I, x, y, t, z);
+  const { I, z, x, y } = islandFrame(w, n, W, H);
+  drawIslandZoom(S, I, x, y + isleBob(n, t) * z, t, z);
   c.putImageData(S.img, 0, 0);
+}
+// Where island n sits in a W x H close-up: {I (its sprite), z, x, y (the sprite's top-centre on the canvas), horizon
+// (the planet's top row)}. The sprite is built at a fixed close-up scale, not the canvas's world scale: at the stage
+// sheet's size (stage-4 half-width 26, or 18 in a small panel) props read large on the rock and no wide-top filler
+// hides the difference between stages. The zoom and the grass line come from the island fully grown (stage 4, bare of
+// picks, plus PROP_UP rows of headroom: the tallest prop stands 18), so they hold still while it grows, and the grown
+// island's lowest pixel stays LOW_GAP of the height above the horizon.
+const PROP_UP = 20, LOW_GAP = .05, FRAMES = new Map();
+export const closeK = W => W < 400 ? .36 : .52;
+export function opaqueBox(I) {
+  if (I.box) return I.box;
+  let x0 = I.w, y0 = I.h, x1 = -1, y1 = -1;
+  for (let y = 0; y < I.h; y++) for (let x = 0; x < I.w; x++) if (I.px.d[(y * I.w + x) * 4 + 3]) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y }
+  return (I.box = { x0, y0, x1, y1, w: x1 - x0 + 1, h: y1 - y0 + 1 });
+}
+export function islandFrame(w, n, W = VW, H = VH) {
+  const k = closeK(W), I = getSprite(w, n, 'near', k), horizon = Math.round(H * .8);
+  const fk = [w.def.key, n.id, n.seed, k, W, H].join();
+  let F = FRAMES.get(fk);
+  if (!F) {
+    const spec = islandSpec(w, { ...n, stage: 4 }, 'near', k), b = opaqueBox(islandSprite({ ...spec, picks: [], gifts: [], falls: [] })), oy = I.oy;
+    const below = b.y1 + 1 - oy, z = [8, 7, 6, 5, 4, 3, 2].find(q => b.w * q <= W * .6 && (below + PROP_UP) * q <= horizon - H * LOW_GAP - q) || 1;
+    F = { z, y: Math.round(horizon - H * LOW_GAP - z - below * z) };
+    FRAMES.set(fk, F); if (FRAMES.size > 64) FRAMES.delete(FRAMES.keys().next().value);
+  }
+  return { I, z: F.z, x: Math.round(W / 2), y: F.y, horizon };
 }

@@ -153,14 +153,13 @@ test('blitZoom makes exact z x z blocks and keeps alpha', () => {
   }
 });
 
-test('the island close-up is the city sprite zoomed whole', async () => {
-  const { islandView, zoomFor } = await import('../web/js/draw/closeup.js');
+test('the island close-up is the kit sprite at the close-up scale, zoomed whole', async () => {
+  const { islandView, islandFrame, closeK, opaqueBox } = await import('../web/js/draw/closeup.js');
   const { getSprite } = await import('../web/js/draw/kit.js');
-  const game = skip(newGame(3)), w = game.worlds[0], n = isl(w)[0], W = 1146, H = 480, v = worldView(W, H), I = getSprite(w, n, 'near', v.k), z = zoomFor(I.w, I.h, W, H);
-  assert.equal(z, [4, 3, 2].find(q => I.w * q <= W * .45 && I.h * q <= H * .8), 'the largest zoom that fits both ways');
-  assert.ok(I.w * z <= W * .45 && I.h * z <= H * .8);
-  // a small canvas: the zoomed sprite is whole on screen, not clipped
-  for (const [cw, ch] of [[344, 144], [200, 120], [756, 472]]) { const k = worldView(cw, ch).k, S = getSprite(w, n, 'near', k), q = zoomFor(S.w, S.h, cw, ch); assert.ok(S.w * q <= cw && S.h * q <= ch, `${cw}x${ch} z${q}`) }
+  const game = skip(newGame(3)), w = game.worlds[0], n = isl(w)[0], W = 1146, H = 480, { I, z } = islandFrame(w, n, W, H);
+  assert.equal(I, getSprite(w, n, 'near', closeK(W)), 'the shared kit sprite, built at the close-up scale');
+  // every canvas: the zoomed island's opaque pixels are whole on screen, not clipped
+  for (const [cw, ch] of [[344, 144], [200, 120], [756, 472], [W, H]]) { const F = islandFrame(w, n, cw, ch), b = opaqueBox(F.I); assert.ok(F.x + (b.x0 - F.I.ox) * F.z >= 0 && F.x + (b.x1 + 1 - F.I.ox) * F.z <= cw && F.y + (b.y0 - F.I.oy - 1) * F.z >= 0 && F.y + (b.y1 + 2 - F.I.oy) * F.z <= ch, `${cw}x${ch} z${F.z}`) }
   const c = new PixCtx(W, H); islandView(c, w, n, 3, W, H);
   // the sprite's own opaque pixels show as z x z blocks of the same colour somewhere on the canvas
   let found = 0;
