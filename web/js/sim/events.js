@@ -10,7 +10,7 @@ export const EVENTS = {
   traveller: { dur: 120, gift: 'hut', line: 'A traveller passed by while you were away.' },
   aurora: { dur: 180, gift: 'banner', line: 'An aurora lit the sky while you were away.' },
 };
-const KINDS = Object.keys(EVENTS);
+export const KINDS = Object.keys(EVENTS);
 
 // Saveable RNG: the integer state rs advances by the mulberry32 increment on every draw.
 export function draw(ev) {
@@ -26,7 +26,7 @@ export function newEv(seed, t = 0) {
   return ev;
 }
 
-function giftOf(ev, kind, variant) {
+export function giftOf(ev, kind, variant) {
   const g = { id: ev.nextGift++, kind: EVENTS[kind].gift, variant };
   if (g.kind === 'hut') g.name = TRAVELLER_NAMES[variant * 2 % TRAVELLER_NAMES.length + (draw(ev) < .5 ? 0 : 1)];
   return g;
