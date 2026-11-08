@@ -4,9 +4,13 @@
 // around every changed pixel, so twinkling in the canvas made almost every wallpaper frame a full-canvas repaint
 // (docs/TIMINGS.md). In wallpaper mode twinkle() (draw/kit.js) draws nothing and only records each star here,
 // with the pixel under it. main.js then draws the visible stars once into GROUPS small layers (canvases over the
-// map, same pixel grid) whose opacity a CSS animation steps through the twinkle, so the compositor animates them
-// with no JS and no canvas repaint. A layer is touched only when a star is covered or uncovered (an island bobs
-// over it, a walker passes).
+// map, same pixel grid) whose opacity main.js steps through the twinkle on the wallpaper's own frames
+// (starOpacity). An opacity change on a composited layer is a layer property, not a repaint, and riding the frame
+// the map already commits adds no rendering update of its own. A layer's pixels are touched only when a star is
+// covered or uncovered (an island bobs over it, a walker passes).
+// (A step-end CSS animation did the same with no JS, but WebKit doesn't run stepped animations on the compositor:
+// every step was its own rendering update, about 6% of a core for 6 groups. A linear one runs on the compositor,
+// but WindowServer then recomposites the screen 60 times a second: +20%. docs/TIMINGS.md.)
 //
 // Each group steps through sin's twinkle thresholds (twinkle(): bright above .6, dim above -.2, off below) over
 // its own period, so neighbouring stars twinkle out of step.
@@ -14,6 +18,14 @@
 export const GROUPS = 6;
 // The period of each group's twinkle, in seconds (twinkle()'s f runs .6..2 rad/s: periods 3..10 s).
 export const PERIODS = [3.3, 4.1, 4.8, 5.7, 6.9, 8.3];
+
+// Group g's opacity at time t (seconds): sin's twinkle over the group's period, offset by g/GROUPS of a turn.
+// Rising from 0: dim until sin passes .6, bright until it falls back under .6, dim until -.2, off until it climbs
+// back over -.2 (the phase fractions are asin(.6)/2pi and (pi + asin(.2))/2pi).
+export function starOpacity(t, g) {
+  const ph = ((t / PERIODS[g] + g / GROUPS) % 1 + 1) % 1;
+  return ph < .1024 ? .5 : ph < .3976 ? 1 : ph < .5321 ? .5 : ph < .9679 ? 0 : .5;
+}
 
 // While on, twinkle() records instead of drawing: list holds star, bg, then for big stars the 4 arm pixels'
 // bg (left, right, up, down; -1 off the canvas).

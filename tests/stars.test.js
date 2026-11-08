@@ -11,7 +11,7 @@ const { PixCtx } = await import('../web/js/core/pixctx.js');
 const { worldView } = await import('../web/js/core/pixel.js');
 const { drawCity } = await import('../web/js/draw/city.js');
 const { twinkle } = await import('../web/js/draw/kit.js');
-const { STARS, GROUPS, PERIODS, visibleStars, starDiff, groupOf } = await import('../web/js/core/stars.js');
+const { STARS, GROUPS, PERIODS, visibleStars, starDiff, groupOf, starOpacity } = await import('../web/js/core/stars.js');
 const { WALL_MS } = await import('../web/js/core/cadence.js');
 const { dirtyBox } = await import('../web/js/core/present.js');
 
@@ -69,20 +69,30 @@ test('stars spread over every group, and each group has a period', () => {
   assert.equal(PERIODS.length, GROUPS);
 });
 
-test('the page has the stars container between the map and the names, and a CSS twinkle animation', () => {
+test('the page has the stars container between the map and the names; no CSS animation runs on it', () => {
   const html = readFileSync(new URL('../web/index.html', import.meta.url), 'utf8'), css = readFileSync(new URL('../web/style.css', import.meta.url), 'utf8');
   assert.ok(html.indexOf('id="map"') < html.indexOf('id="stars"') && html.indexOf('id="stars"') < html.indexOf('id="names"'));
-  assert.match(css, /@keyframes twinkle/);
-  assert.match(css, /#stars canvas \{[^}]*animation-name:twinkle/);
+  assert.match(css, /#stars canvas \{ will-change:opacity; \}/);
+  assert.doesNotMatch(css, /@keyframes twinkle|animation/, 'stepped CSS animations are a rendering update per step in WebKit');
   assert.match(css, /body:not\(\.wallpaper\) #stars \{ display:none; \}/);
 });
 
-// main.js can't be imported in node, so this checks the wiring in its source: pause() sets body.paused, resume()
-// clears it, and the CSS stops the star layers' animations under it (nothing animates while the wallpaper sleeps).
-test('pausing the garden pauses the star layers', () => {
-  const css = readFileSync(new URL('../web/style.css', import.meta.url), 'utf8'), js = readFileSync(new URL('../web/js/main.js', import.meta.url), 'utf8');
-  assert.match(css, /body\.paused #stars canvas \{ animation-play-state:paused; \}/);
-  const body = name => { const i = js.indexOf(`  ${name}() {`); assert.ok(i > 0, name); return js.slice(i, js.indexOf('\n', i)) };
-  assert.match(body('pause'), /classList\.add\('paused'\)/);
-  assert.match(body('resume'), /classList\.remove\('paused'\)/);
+test('starOpacity steps each group through sin\'s twinkle thresholds', () => {
+  // group 0 starts its period at phase 0; sample each band's middle
+  const at = ph => starOpacity(ph * PERIODS[0], 0);
+  assert.deepEqual([.05, .25, .45, .75, .99].map(at), [.5, 1, .5, 0, .5]);
+  // the fraction of a period at each level matches twinkle(): bright where sin > .6, off where sin < -.2
+  const n = 10000, count = { 0: 0, .5: 0, 1: 0 }, ref = { 0: 0, .5: 0, 1: 0 };
+  for (let i = 0; i < n; i++) { const ph = i / n; count[at(ph)]++; const b = Math.sin(ph * 2 * Math.PI); ref[b > .6 ? 1 : b > -.2 ? .5 : 0]++ }
+  for (const k of [0, .5, 1]) assert.ok(Math.abs(count[k] - ref[k]) < 20, `level ${k}: ${count[k]} vs ${ref[k]}`);
+  // groups are out of step
+  assert.ok(new Set(Array.from({ length: GROUPS }, (_, g) => [0, 1, 2, 3].map(t => starOpacity(t, g)).join())).size > 1);
+});
+
+// main.js can't be imported in node: check in its source that the star layers' opacity is stepped on wallpaper
+// frames (so a paused garden, which schedules no frames, holds them still).
+test('main.js steps the star layers from updateStars', () => {
+  const js = readFileSync(new URL('../web/js/main.js', import.meta.url), 'utf8'), i = js.indexOf('function updateStars'), body = js.slice(i, js.indexOf('\n}\n', i));
+  assert.match(body, /starOpacity\(app\.t, g\)/);
+  assert.match(body, /style\.opacity = o/);
 });
