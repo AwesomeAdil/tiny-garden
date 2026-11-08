@@ -24,10 +24,10 @@ parked — rapid play→wallpaper→play toggle may drop play once — Ruling T:
 - Drawing your own art: a folder of PNGs the game picks up.
 - Inviting events with goods (today they come at random).
 
-## Needs Adil's decision
-- Wallpaper CPU at 10 fps is about 12% (city) and 14% (galaxy), against the 5% budget; 3 fps is 4.4
-  (docs/TIMINGS.md). Options: twinkling as CSS-animated stars outside the canvas plus cheaper per-frame JS, a
-  lower wallpaper frame rate, or a bigger budget.
+## Decided
+- ~~Wallpaper CPU at 10 fps is about 12% (city) and 14% (galaxy), against the 5% budget.~~ **Decided 2026-11-08:**
+  6 fps wallpaper plus twinkling stars on CSS-animated layers (paused with the garden). The on-device CPU run is
+  still pending: it needs the desktop visible (docs/TIMINGS.md, "6 fps + CSS stars").
 
 ## Seen in the Task 14 shots
 - 1512×944 play, system view: CINDER (selected) has no name label.
@@ -50,15 +50,15 @@ parked — rapid play→wallpaper→play toggle may drop play once — Ruling T:
 - T10: the town has two sources of truth (`TOWN` and `w.hub`).
 
 ### Events and gifts (sim/events.js, ui/card.js)
-- T5: the "while you were away" line is said even when a full tray dropped the gift.
+- ~~T5: the "while you were away" line is said even when a full tray dropped the gift.~~ Fixed: it says "The tray was full."
 - T5: TRAVELLER_NAMES 12–13 are unreachable; `placeGift` on the planet node has no guard.
 - T5: no test that an `ev` JSON round-trip continues the event stream.
 - T12: gifts are keyed by index; the tray previews on the HOME rock.
-- T13: `eventLine` has no fallback.
+- ~~T13: `eventLine` has no fallback.~~ Resolved: it falls back to "Someone is passing by!".
 
 ### Saving (sim/save.js, SaveStore.swift)
 - T6: unknown pick ids survive prune (save.js:41); `cleanEv` does not check `active.world` / variant.
-- T6: `keepV1` replaces an older save.v1.json; no Swift test of it; no test for caught + active; no cable shape check.
+- T6: ~~`keepV1` replaces an older save.v1.json~~ (fixed: a second v1 save is kept as `save.v1-<stamp>.json`); no Swift test of it; no test for caught + active; no cable shape check.
 
 ### Drawing (draw/*.js, core/pixctx.js)
 - T8: an unused `drawMap` import and a bare `{}` block in drawMain; stale comments in main.js.
@@ -73,7 +73,7 @@ parked — rapid play→wallpaper→play toggle may drop play once — Ruling T:
 
 ### Play UI (ui/*.js)
 - T12: a bridge tap both cycles it and selects it; the island hit box is a rectangle.
-- T12: leftover shop / rope naming in code, and the "pick Rope" guide line; unused CSS.
+- T12: leftover shop / rope naming in code; unused CSS. ~~The "pick Rope" guide line.~~ Resolved: the guide no longer says it.
 - T12: a util.js <-> card/panel import cycle (safe today).
 - T13: renaming state survives a view change; the `rename=1` dev param has no guard.
 

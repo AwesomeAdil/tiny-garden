@@ -2,13 +2,15 @@
 
 A pixel-art world that lives on your macOS desktop as a live wallpaper, and turns into a playable game on one key.
 
-![The solar system as a wallpaper](docs/img/wallpaper-system.png)
+![The city as a wallpaper: TIDE's islands and bridges over its horizon, under the Milky band](docs/img/wallpaper-city.png)
 
 ## The four views
 
-| 1 City | 2 System | 3 Galaxy | 4 Close |
+| 1 City (play) | 2 System (wallpaper) | 3 Galaxy (wallpaper) | 4 Close (play) |
 | --- | --- | --- | --- |
-| ![city](docs/img/city.png) | ![system](docs/img/system.png) | ![galaxy](docs/img/galaxy.png) | ![close](docs/img/closeup.png) |
+| ![The city in play mode, with the dock, the guide line and the side panel](docs/img/city.png) | ![The solar system wallpaper: the sun and its planets on their orbits, TIDE in front](docs/img/system.png) | ![The galaxy wallpaper: the home galaxy's disc around its black hole](docs/img/galaxy.png) | ![The close-up in play mode: HOME at stage 3 over TIDE at dawn](docs/img/closeup.png) |
+
+All shots are 1512×944, from `scripts/shot.mjs` (more in `shots/v2/`).
 
 ## Modes
 
@@ -80,16 +82,21 @@ rm -rf ~/Applications/Tiny\ Garden.app ~/Library/LaunchAgents/local.tiny-garden.
 
 ## Saves
 
-`~/Library/Application Support/tiny-garden/`: `save.json` (live), `save.prev.json` (the map before "New map"), `save.v1.json` (a v1 save, set aside when v2 first starts), `save.bad-YYYYMMDD-HHMMSS.json` (each unreadable save, kept).
+`~/Library/Application Support/tiny-garden/`: `save.json` (live), `save.prev.json` (the map before "New map"), `save.v1.json` (a v1 save, set aside when v2 first starts; a later one never overwrites it and goes to `save.v1-YYYYMMDD-HHMMSS.json`), `save.bad-YYYYMMDD-HHMMSS.json` (each unreadable save, kept).
 
-## Tests
+## Tests and screenshots
 
 ```
 npm test
+node scripts/shot.mjs "seed=7&mode=play&view=planet" shots/city.png 1512,944
 ```
+
+`scripts/shot.mjs` drives headless Chrome for Testing from Playwright's cache by default; set `CHROME=/path/to/chrome`
+to use another Chrome binary.
 
 ## Contributing art
 
-Read [docs/ART.md](docs/ART.md) first. The look is guarded. See also [docs/design.md](docs/design.md) and [docs/plan.md](docs/plan.md).
+Read [docs/ART.md](docs/ART.md) first. The look is guarded. v2's design is [docs/v2-design.md](docs/v2-design.md) and its
+build plan [docs/v2-plan.md](docs/v2-plan.md). v1's [design](docs/design.md) and [plan](docs/plan.md) are kept as history.
 
 MIT licensed.

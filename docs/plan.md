@@ -17,6 +17,7 @@
 - No third-party dependencies
 
 **Spec:** `docs/superpowers/specs/2026-11-07-tiny-garden-design.md` (approved 2026-11-07). The prototype source of truth is `~/dotfiles/.lavish/tiny-garden/38-galaxy-and-homes.html` ("page 38"). **Page 38's code wins over any number in this plan or the spec.**
+(Note: design mockups were private review pages, not in this repo.)
 
 ## Global Constraints
 
@@ -90,7 +91,7 @@
   - The save carries `v`, and `deserialize` runs `migrate(obj)` (v1 is identity), so later versions can upgrade old saves instead of wiping them.
 - **Aesthetics are guarded.**
   - Task 5 writes `docs/ART.md`: the palette, the 12px icon grid and how to add an icon, the `.px` frame rules, integer scaling, no emoji or rounded widgets, and where each art routine lives.
-  - Every task that touches drawing or UI (5, 6, 7) is reviewed against the page 38 screenshots, `~/dotfiles/.lavish/tiny-garden/img/live-*.png`.
+  - Every task that touches drawing or UI (5, 6, 7) is reviewed against the page 38 screenshots, `~/dotfiles/.lavish/tiny-garden/img/live-*.png`. (Note: design mockups were private review pages, not in this repo.)
   - A visible drift from page 38 is a failing review.
 - **v1 ends at CINDER's cable.** Launching it says "the next planet comes later". RIME/TEMPEST and other stars stay visible but unreachable.
 
@@ -342,7 +343,7 @@ tiny-garden/
 - [ ] **Step 2:** Write `scripts/shot.mjs <url-params> <out.png>`. It runs Chrome for Testing at `$CHROME`, defaulting to `~/Library/Caches/ms-playwright/chromium-1243/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing`, with `--headless=new --virtual-time-budget=4000 --screenshot`.
 - [ ] **Step 3:** Port the art modules from page 38 (helpers, scene, island, levelDeco, goods, ropeDraw, reachRing, drawMap, dawn, planetView, islandView, bridgesOut, drawSystem, tube, orb, galaxy).
 - [ ] **Step 4:** Write `web/art.html`. It reads `?seed&view=city|system|galaxy|close&skip=1`, builds a game with the sim plus `autoNet`, and draws one frame.
-- [ ] **Step 5: Verify.** Shoot all four views and compare by eye with `~/dotfiles/.lavish/tiny-garden/img/live-{city,system,galaxy,closeup}.png`. Expected: the same art, with the same islands, decorations, goods, flags, piers, galaxy shape and orbits. The layouts may differ. Also check there are no console errors.
+- [ ] **Step 5: Verify.** Shoot all four views and compare by eye with `~/dotfiles/.lavish/tiny-garden/img/live-{city,system,galaxy,closeup}.png`. Expected: the same art, with the same islands, decorations, goods, flags, piers, galaxy shape and orbits. The layouts may differ. Also check there are no console errors. (Note: design mockups were private review pages, not in this repo.)
 - [ ] **Step 6:** Write `docs/ART.md` with the rules listed under Global Constraints, "Aesthetics are guarded". Include a worked example: adding a 12px icon to `UICON`.
 - [ ] **Step 7:** `git add web/js/core/icons.js web/js/draw scripts web/art.html docs/ART.md && git commit -m "feat: port the pixel art and views"`
 

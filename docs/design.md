@@ -6,6 +6,7 @@ Source of truth for look and rules: the lavish prototype series in
 (`38-galaxy-and-homes.html`, the latest playable build) and page 39
 (`39-where-it-lives.html`, the platform decision). This doc lives in dotfiles
 until the new repo exists, then moves to `tiny-garden/docs/`.
+(Note: design mockups were private review pages, not in this repo.)
 
 ## Intent
 

@@ -11,6 +11,7 @@
 **Spec:** `docs/v2-design.md` (approved 2026-11-07, lavish page 46). The v1 design `docs/design.md` still holds for everything v2 doesn't change.
 
 **Mockup source of truth:** `~/dotfiles/.lavish/tiny-garden/45-storybook-mix.html`. Its inline `<script>`, lines ~100–380, is the pixel kit: `skyLayer`, `STY` (use `mixA`), `glowAt`, `PROPS`, `makeIsland`, `drawIsland`, `span`, `plank`, `astro`, `planetLayer`. Page 45 also has the arc connections (`sc-arc`) and the Horizon layout (`lay-h`). For the whale, traveller and aurora animations, see `44-step-back.html` (`ev-whale`, `ev-trav`, `ev-aurora`).
+(Note: design mockups were private review pages, not in this repo.)
 
 ## Global Constraints
 
