@@ -13,7 +13,6 @@ import { W, H } from './sim/content.js';
 import { viewScale, worldOffset } from './core/pixel.js';
 import { VIEWS } from './ui/esc.js';
 import { bg } from './draw/scene.js';
-import { drawMap } from './draw/map.js';
 import { drawCity } from './draw/city.js';
 import { drawSystem } from './draw/system.js';
 import { drawGalaxy, galInvalidate, GSYS } from './draw/galaxy.js';

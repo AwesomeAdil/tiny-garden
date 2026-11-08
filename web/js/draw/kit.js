@@ -63,19 +63,24 @@ export function skyLayer(W, H, seed, o = {}) {
   return L;
 }
 export function sun(c, x, y) { A(c, '#f5a97f', .18, x - 3, y - 2, 7, 5); A(c, '#f5a97f', .18, x - 2, y - 3, 5, 7); P(c, '#f5a97f', x - 1, y - 2, 3, 5); P(c, '#f5a97f', x - 2, y - 1, 5, 3); P(c, '#eed49f', x - 1, y - 1, 3, 3); P(c, '#fff4d6', x, y - 1) }
-export function drawSky(c, L, t) { c.putImageData(L.img, 0, 0); for (const s of L.tw) { const b = Math.sin(t * s.f + s.p); if (b > -.2) P(c, b > .6 ? '#e3eafc' : '#8087a2', s.x, s.y); if (s.big && b > .75) { A(c, '#8087a2', .7, s.x - 1, s.y); A(c, '#8087a2', .7, s.x + 1, s.y); A(c, '#8087a2', .7, s.x, s.y - 1); A(c, '#8087a2', .7, s.x, s.y + 1) } } }
+export function drawSky(c, L, t) { c.putImageData(L.img, 0, 0); twinkle(c, L.tw, t) }
+// The twinkling stars of a sky layer (a list of {x, y, f, p, big}), drawn over whatever is there.
+export function twinkle(c, tw, t) { for (const s of tw) { const b = Math.sin(t * s.f + s.p); if (b > -.2) P(c, b > .6 ? '#e3eafc' : '#8087a2', s.x, s.y); if (s.big && b > .75) { A(c, '#8087a2', .7, s.x - 1, s.y); A(c, '#8087a2', .7, s.x + 1, s.y); A(c, '#8087a2', .7, s.x, s.y - 1); A(c, '#8087a2', .7, s.x, s.y + 1) } } }
 
 // A big planet disc with land, clouds, a lit rim and a dithered night side (TIDE on the horizon).
-export function planetLayer(c, W, H, cx, cy, r, fx = 1, fy = 1) {
-  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+// o.rim: the lit rim's width in pixels (default the mockup's 4.5% of r); o.map(x, y) -> [X, Y]: where the
+// land and clouds are looked up (default [x*fx, y*fy]), so a huge horizon curve can lay them along its surface.
+export function planetLayer(c, W, H, cx, cy, r, fx = 1, fy = 1, o = {}) {
+  const rimV = o.rim ? 1 - o.rim / r : .955;
+  for (let y = Math.max(0, Math.floor(cy - r - 3)); y < H; y++) for (let x = 0; x < W; x++) {
     const dx = x - cx, dy = y - cy, d = Math.hypot(dx, dy); if (d > r + 3) continue;
     if (d > r) { const a = d > r + 2 ? .12 : d > r + 1 ? .3 : .55; if (BAY[y & 1][x & 1] < a * 1.4) P(c, '#7da2ec', x, y); continue }
-    const v = d / r, X = x * fx, Y = y * fy;
+    const v = d / r, [X, Y] = o.map ? o.map(x, y) : [x * fx, y * fy];
     const land = sn(X * .09 + 3, 2) + sn(X * .23 + Y * .35, 5) * .55 + sn(Y * .2 + X * .05, 1) * .4 > .62;
     const cloud = sn(X * .06 + Y * .9, 9) + sn(X * .2, 3) * .3 > .78;
     let col = land ? (sn(X * .4 + Y * .4, 7) > .3 ? '#86c487' : '#6aa57a') : '#5a7fd0';
     if (cloud && ((x + y) & 1 || sn(X * .3, 4) > .2)) col = '#e3eafc';
-    if (v > .955) col = mixc(col, '#c9dafb', .45);
+    if (v > rimV) col = mixc(col, '#c9dafb', .45);
     const shade = (dx / r) * 1.1 + (dy / r) * .4; if (shade > .25 + BAY[y & 1][x & 1] * .5) col = mixc(col, CR, .4); if (shade > .75 + BAY[y & 1][x & 1] * .3) col = mixc(col, CR, .35);
     P(c, col, x, y);
   }
@@ -151,8 +156,9 @@ function emberTree(c, x, y, S, h = 6, sp = 3) {
   for (let i = 1; i <= sp; i++) { P(c, S.bark, x - i, y - h + 2 - i); P(c, S.bark, x + i, y - h + 3 - i) }
   tips.forEach(([a, b]) => { P(c, S.leaf[1], a - 1, b, 3, 1); P(c, S.leaf[1], a, b - 1, 1, 3); P(c, S.leaf[2], a, b); P(c, S.leaf[0], a + 1, b) });
 }
-// A grove (verdant): three small trees, the middle one tallest.
-function grove(c, x, y, S, h = 5, a = 3, b = 2) { tree(c, x - 4, y, S, 3, a); tree(c, x + 4, y, S, 3, b); tree(c, x, y, S, 4, h) }
+// A grove (verdant): three small trees, the middle one tallest, kept narrow so a tree on the spot beside it
+// still reads as its own tree at city scale.
+function grove(c, x, y, S, h = 5, a = 3, b = 2) { tree(c, x - 3, y, S, 2, a); tree(c, x + 3, y, S, 2, b); tree(c, x, y, S, 3, h) }
 
 // Added for v2 picks the mockup has no art for, in the same manner: a few pixels with an outline.
 function reeds(c, x, y, S) {
@@ -273,9 +279,9 @@ export function drawIsland(c, I, x, y, t) {
 
 // ---------- from game state ----------
 // Stage 1 is bare rock, 2 grass and tufts, 3 adds the type's home prop, 4 blooms (flowers and fireflies).
-const BASE_HW = [0, 14, 18, 22, 26];
+export const BASE_HW = [0, 14, 18, 22, 26];
 // Six evenly spaced slots on the top, rims outermost: spot 0, spot 1, the home prop, spot 4, spot 3, spot 2.
-export const SPOT_X = [-.78, -.47, .78, .47, .16]; // x of each SPOTS entry, as a fraction of hw
+export const SPOT_X = [-.78, -.47, .78, .52, .16]; // x of each SPOTS entry, as a fraction of hw
 const HOME_X = -.16;
 const HOME = { house: 'house', forge: 'forge', sparks: 'emberTree', snow: 'pine', crystal: 'crystal', flowers: 'grove' };
 // Shape parameters for a prop, drawn from its own seed, so the same prop differs from island to island.
@@ -295,6 +301,10 @@ export function homeProp(type, seed, hw) {
   return { k, ...v, x: Math.round(hw * HOME_X) + v.dx };
 }
 export const BANDS = { far: { k: .7, haze: .55 }, mid: { k: .85, haze: .25 }, near: { k: 1, haze: 0 } };
+// The depth band of a world y (islands higher up are farther away).
+export const bandOf = y => y < 110 ? 'far' : y < 190 ? 'mid' : 'near';
+// An island's bob, in whole pixels, from its seed (the same phase in every view and in the events).
+export const isleBob = (n, t) => bob(t, (n.seed || 0) * 1.7);
 
 // spec = {type, seed, stage, picks:[{spot, prop}], gifts:[{spot, kind, variant}], falls:[side], hw, depth, haze}
 export function islandSprite(spec) {
@@ -334,8 +344,27 @@ const keyOf = (w, s, band) => `${w.def.key}|${s.type}|seed:${s.seed}|st:${s.stag
 // Changes only with the seed, stage, picks, gifts, pier sides, falls or band (never with time or walkers).
 export const islandKey = (w, n, band) => keyOf(w, islandSpec(w, n, band), band);
 export const SPRITES = new Map(); // LRU, at most 64
+// A per-node memo of the key, so a frame where nothing changed skips islandSpec (a filter, a sort and a
+// spotKind per rim). The stamp holds everything the spec reads: the node's seed, stage, spot and gift counts
+// (a spot's pick or gift never changes once set), its position, and per bridge its id, way and the far
+// end's x (the pier side) and sends (what arrives there).
+export const SPEC_STATS = { builds: 0 };
+const MEMO = new WeakMap();
+function stampOf(w, n, band) {
+  let s = `${w.def.key}|${n.seed}|${n.stage}|${n.spots ? Object.keys(n.spots).length : 0}|${n.gifts ? n.gifts.length : 0}|${n.x},${n.y}|${band}`;
+  for (const r of w.S.ropes) {
+    if (r.a !== n.id && r.b !== n.id) continue;
+    const o = w.S.nodes.find(q => q.id === (r.a === n.id ? r.b : r.a));
+    s += `|${r.id}:${r.way}:${o ? o.x : ''}:${o ? o.sends : ''}`;
+  }
+  return s;
+}
 export function getSprite(w, n, band) {
-  const spec = islandSpec(w, n, band), k = keyOf(w, spec, band);
+  let M = MEMO.get(n); if (!M) MEMO.set(n, M = {});
+  const stamp = stampOf(w, n, band);
+  let e = M[band];
+  if (!e || e.stamp !== stamp) { const spec = islandSpec(w, n, band); SPEC_STATS.builds++; e = M[band] = { stamp, spec, key: keyOf(w, spec, band) } }
+  const k = e.key, spec = e.spec;
   let s = SPRITES.get(k);
   if (s) { SPRITES.delete(k); SPRITES.set(k, s); return s }
   s = islandSprite(spec); SPRITES.set(k, s);

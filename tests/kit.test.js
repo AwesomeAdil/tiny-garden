@@ -144,3 +144,23 @@ test('nothing paints over the home prop at stage 3 or 4, even with picks and a g
     assert.ok(n > 10);
   }
 });
+
+test('getSprite skips the spec rebuild when nothing about the island changed', async () => {
+  const { SPEC_STATS } = await import('../web/js/draw/kit.js');
+  const w = makeWorld(DEF_OCEAN, 5), home = node(w, 'home'), frost = node(w, 'frost');
+  home.stage = 3; tie(w, frost, home);
+  const s0 = getSprite(w, home, 'near'), b0 = SPEC_STATS.builds;
+  for (let i = 0; i < 50; i++) { w.S.time += .1; w.S.ropes[0].u = i / 50; assert.equal(getSprite(w, home, 'near'), s0) }
+  assert.equal(SPEC_STATS.builds, b0, 'a frame with no change rebuilt the spec');
+  // each thing the key depends on still re-keys it
+  const bump = (f, why) => { const b = SPEC_STATS.builds; f(); const s = getSprite(w, home, 'near'); assert.equal(SPEC_STATS.builds, b + 1, why); assert.equal(islandKey(w, home, 'near'), [...SPRITES.entries()].find(e => e[1] === s)[0], why) };
+  bump(() => { home.spots[1] = { pick: 'cottage' } }, 'pick');
+  bump(() => { home.stage = 4 }, 'stage');
+  bump(() => { home.gifts.push({ id: 1, kind: 'coral', variant: 0 }); home.spots[4] = { gift: home.gifts[0] } }, 'gift');
+  bump(() => { w.S.ropes[0].way = 1 }, 'rope way');
+  bump(() => { frost.x = home.x + (frost.x < home.x ? 60 : -60) }, 'the far end moved across');
+  bump(() => { home.x += 3 }, 'moved');
+  bump(() => { frost.sends = 'light' }, 'far end sends more');
+  const b = SPEC_STATS.builds; getSprite(w, home, 'far'); getSprite(w, home, 'near'); getSprite(w, home, 'far');
+  assert.equal(SPEC_STATS.builds, b + 1, 'each band keeps its own memo');
+});
