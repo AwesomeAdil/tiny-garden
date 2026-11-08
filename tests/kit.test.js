@@ -4,7 +4,8 @@ import { createHash } from 'node:crypto';
 globalThis.ImageData ??= class { constructor(w, h) { this.width = w; this.height = h; this.data = new Uint8ClampedArray(w * h * 4) } };
 
 const { PixCtx } = await import('../web/js/core/pixctx.js');
-const { STY, PROPS, islandSprite, islandKey, getSprite, drawIsland, skyLayer, SPRITES } = await import('../web/js/draw/kit.js');
+const { STY, PROPS, islandSprite, islandKey, getSprite, drawIsland, skyLayer, SPRITES, homeProp, typeStyle } = await import('../web/js/draw/kit.js');
+const { ISL_LAVA } = await import('../web/js/sim/content.js');
 const { DEF_OCEAN } = await import('../web/js/sim/content.js');
 const { PIER_PICKS, MID_PICKS, GIFTS } = await import('../web/js/sim/picks.js');
 const { makeWorld, node, tie } = await import('../web/js/sim/world.js');
@@ -115,4 +116,31 @@ test('skyLayer is cached and has soft stardust', () => {
     assert.ok(base.some(b => b.every((v, k) => Math.abs(v - p[k]) <= 16)), `pixel ${p} is not a soft tint`);
   }
   assert.ok(cols.size > 6, `only ${cols.size} sky colours: no stardust`);
+});
+
+// The centrepiece region: the columns around the home prop, above the top's tufts (rows < oy - 3).
+const centre = (sp, type, seed) => { const p = homeProp(type, seed, sp.hw), x0 = sp.ox + p.x - 9, h = createHash('sha1');
+  for (let y = 0; y < sp.oy - 3; y++) h.update(sp.px.d.subarray((y * sp.w + x0) * 4, (y * sp.w + x0 + 19) * 4)); return h.digest('hex') };
+const TYPES = { ...DEF_OCEAN.isl, ...ISL_LAVA };
+
+test('same type and stage, different seeds: the centrepiece itself differs', () => {
+  for (const type of Object.keys(TYPES)) {
+    const seen = new Set();
+    for (let s = 1; s <= 6; s++) seen.add(centre(islandSprite({ type, seed: s, stage: 3, picks: [], gifts: [], falls: [] }), type, s));
+    assert.ok(seen.size >= 3, `${type}: only ${seen.size} centrepieces in 6 seeds`);
+  }
+  // and the types' centrepieces are different drawables
+  const k = t => homeProp(t, 1, 22).k;
+  assert.deepEqual([k('home'), k('anvil'), k('kiln'), k('ember'), k('cinder'), k('verdant'), k('frost'), k('amethyst')], ['house', 'forge', 'forge', 'emberTree', 'emberTree', 'grove', 'pine', 'crystal']);
+});
+
+test('nothing paints over the home prop at stage 3 or 4, even with picks and a gift beside it', () => {
+  for (const type of Object.keys(TYPES)) for (const seed of [1, 2, 3]) for (const stage of [3, 4]) {
+    const sp = islandSprite({ type, seed, stage, picks: [{ spot: 1, prop: 'tree' }, { spot: 3, prop: 'house' }], gifts: stage === 4 ? [{ spot: 4, kind: 'hut', variant: 0 }] : [], falls: [] }), p = homeProp(type, seed, sp.hw);
+    const alone = new PixCtx(sp.w, sp.h, { transparent: true });
+    PROPS[p.k].s(alone, sp.ox + p.x, sp.oy - 1, typeStyle(type), p);
+    let n = 0;
+    for (let i = 0; i < alone.d.length; i += 4) if (alone.d[i + 3]) { n++; assert.deepEqual([...sp.px.d.subarray(i, i + 4)], [...alone.d.subarray(i, i + 4)], `${type} seed ${seed} stage ${stage}`) }
+    assert.ok(n > 10);
+  }
 });

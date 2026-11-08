@@ -108,16 +108,19 @@ function tree(c, x, y, S, r = 5, h = 4, fruit = 0) {
   if (fruit) [[-2, 0], [2, -1], [0, 2], [-3, 3], [3, 3], [1, -3]].forEach(([a, b]) => P(c, '#f5a97f', x + a, cy + b));
 }
 function pine(c, x, y, S, h = 9) { if (S.outline) for (let i = 0; i < h; i++) { const w = Math.floor((i + 1) / 2) + 1; P(c, CR, x - w, y - h + i, w * 2 + 1, 1) } for (let i = 0; i < h - 1; i++) { const w = Math.floor((i + 1) / 2); for (let d = -w; d <= w; d++) P(c, d < 0 ? S.pine[2] : d === w ? S.pine[0] : S.pine[1], x + d, y - h + 1 + i) } P(c, S.bark, x, y, 1, 1) }
-function house(c, x, y, S, w = 7) {
+const ROOFS = [null, ['#8aadf4', '#3f5fa8'], ['#eed49f', '#a98a7c']];
+// rf picks a roof colouring (0 is the mockup's), flip puts the door on the right and the window on the left.
+function house(c, x, y, S, w = 7, rf = 0, flip = 0) {
   const l = x - (w >> 1);
+  if (rf) S = { ...S, roof: ROOFS[rf][0], roofD: ROOFS[rf][1] };
   if (S.outline) { P(c, CR, l - 1, y - 5, w + 2, 6); for (let i = 0; i < 5; i++) P(c, CR, l - 2 + i, y - 6 - i, w + 4 - i * 2, 1) }
   P(c, S.wall, l, y - 4, w, 5); P(c, S.wallD, l + w - 2, y - 4, 2, 5);
   for (let i = 0; i < 4; i++) { P(c, S.roof, l - 1 + i, y - 5 - i, w + 2 - i * 2, 1); P(c, S.roofD, l - 1 + i, y - 5 - i, 1, 1) }
-  P(c, S.wood, l + 1, y - 2, 2, 3); P(c, S.win, l + w - 3, y - 3, 2, 2); P(c, S.woodD, l + w - 2, y - 9, 1, 3);
+  P(c, S.wood, flip ? l + w - 3 : l + 1, y - 2, 2, 3); P(c, S.win, flip ? l + 1 : l + w - 3, y - 3, 2, 2); P(c, S.woodD, l + w - 2, y - 9, 1, 3);
 }
 export function lamp(c, x, y, S) { if (S.outline) P(c, CR, x - 1, y - 6, 3, 7); P(c, S.woodD, x, y - 5, 1, 6); P(c, S.woodD, x - 1, y - 6, 3, 1); P(c, S.win, x, y - 5) }
 export function glowAt(c, x, y, col, s) { A(c, col, .12 * s, x - 3, y - 2, 7, 5); A(c, col, .12 * s, x - 2, y - 3, 5, 7); A(c, col, .22 * s, x - 1, y - 1, 3, 3) }
-function crystal(c, x, y, S) { [[0, 7, '#c6a0f6'], [-2, 4, '#9a72c9'], [2, 5, '#8aadf4'], [-1, 3, '#e0caf9']].forEach(([d, h, col]) => { if (S.outline) P(c, CR, x + d - 1, y - h - 1, 3, h + 1); P(c, col, x + d, y - h, 1, h); P(c, '#f6eefe', x + d, y - h) }) }
+function crystal(c, x, y, S, dh = [0, 0, 0, 0]) { [[0, 7, '#c6a0f6'], [-2, 4, '#9a72c9'], [2, 5, '#8aadf4'], [-1, 3, '#e0caf9']].forEach(([d, h0, col], i) => { const h = h0 + dh[i]; if (S.outline) P(c, CR, x + d - 1, y - h - 1, 3, h + 1); P(c, col, x + d, y - h, 1, h); P(c, '#f6eefe', x + d, y - h) }) }
 // Gift variants 0-5 cycle three colourings; variant 0 is the mockup's.
 const CORAL = [['#f5bde6', '#fbe0f3', '#a24f83'], ['#f5a97f', '#fbd5bd', '#a8473f'], ['#8bd5ca', '#d4f4ee', '#357a78']];
 function coral(c, x, y, v = 0) { const [m, l, d] = CORAL[v % 3], pts = [[0, 0], [0, -1], [0, -2], [-1, -3], [-2, -4], [1, -3], [2, -4], [2, -5], [-2, -5], [0, -4], [0, -5], [-3, -6], [3, -6], [1, -6]]; pts.forEach(([a, b]) => P(c, m, x + a, y + b)); [[-3, -6], [3, -6], [0, -5]].forEach(([a, b]) => P(c, l, x + a, y + b)); P(c, d, x, y) }
@@ -131,6 +134,26 @@ function tuft(c, x, y, S) { P(c, S.topL, x, y - 1); P(c, S.topL, x + 2, y - 2); 
 function fence(c, x, y, S, n = 4) { for (let i = 0; i < n; i++) P(c, S.wood, x + i * 2, y - 2, 1, 3); P(c, S.wood, x, y - 1, n * 2 - 1, 1) }
 // A pool on the top: at the rim on a rim spot (so a fall can leave from it), else centred on the spot.
 function pond(c, y, S, p) { const e = p.side < 0 ? -p.hw : p.side > 0 ? p.hw - 6 : p.x - 3; for (let i = 0; i < 7; i++) { P(c, i === 0 || i === 6 ? S.waterD : S.water, p.cx + e + i, y + 1); if (i > 0 && i < 6) P(c, i < 3 ? S.waterL : S.water, p.cx + e + i, y) } }
+// Home centrepieces for types the mockup has none for, in its manner (outline first, then flat colour).
+// A forge (anvil, kiln): a stone hearth with a glowing mouth and a chimney.
+function forge(c, x, y, S, w = 7, flip = 0) {
+  const l = x - (w >> 1), ch = flip ? l : l + w - 2;
+  if (S.outline) { P(c, CR, l - 1, y - 5, w + 2, 6); P(c, CR, ch - 1, y - 9, 4, 5) }
+  P(c, S.rock[2], l, y - 4, w, 5); P(c, S.rock[3], l, y - 4, w, 1); P(c, S.rock[1], l + w - 1, y - 3, 1, 4);
+  P(c, S.rock[1], ch, y - 8, 2, 4); P(c, S.rock[3], ch, y - 8, 1, 4);
+  const m = flip ? l + w - 4 : l + 1; P(c, CR, m, y - 2, 3, 3); P(c, '#f5a97f', m, y - 1, 3, 2); P(c, '#eed49f', m + 1, y - 1);
+}
+// An ember tree (ember, emberfall): a bare forked trunk with small glowing crowns at its tips.
+function emberTree(c, x, y, S, h = 6, sp = 3) {
+  const tips = [[x - sp, y - h - 1], [x + sp, y - h], [x, y - h - 3]];
+  if (S.outline) { P(c, CR, x - 1, y - h - 1, 3, h + 2); tips.forEach(([a, b]) => ring(c, a, b, 1)); for (let i = 1; i <= sp; i++) { P(c, CR, x - i, y - h + 1 - i, 1, 3); P(c, CR, x + i, y - h + 2 - i, 1, 3) } }
+  P(c, S.bark, x, y - h, 1, h + 1); P(c, S.bark, x - 1, y, 3, 1);
+  for (let i = 1; i <= sp; i++) { P(c, S.bark, x - i, y - h + 2 - i); P(c, S.bark, x + i, y - h + 3 - i) }
+  tips.forEach(([a, b]) => { P(c, S.leaf[1], a - 1, b, 3, 1); P(c, S.leaf[1], a, b - 1, 1, 3); P(c, S.leaf[2], a, b); P(c, S.leaf[0], a + 1, b) });
+}
+// A grove (verdant): three small trees, the middle one tallest.
+function grove(c, x, y, S, h = 5, a = 3, b = 2) { tree(c, x - 4, y, S, 3, a); tree(c, x + 4, y, S, 3, b); tree(c, x, y, S, 4, h) }
+
 // Added for v2 picks the mockup has no art for, in the same manner: a few pixels with an outline.
 function reeds(c, x, y, S) {
   const st = [[-2, 4], [0, 6], [2, 5], [3, 3]];
@@ -156,11 +179,14 @@ function quarry(c, x, y, S) {
 
 export const PROPS = {
   tree: { s: (c, x, y, S, p) => tree(c, x, y, S, p.r || 5, p.h || 4, p.fruit) },
+  forge: { s: (c, x, y, S, p) => forge(c, x, y, S, p.w || 7, p.flip), a: (c, x, y, S, p, t) => { const w = p.w || 7, l = x - (w >> 1), m = p.flip ? l + w - 4 : l + 1, ch = p.flip ? l : l + w - 2; glowAt(c, m + 1, y - 1, '#f5a97f', Math.sin(t * 5) > -.5 ? .7 : .4); for (let i = 0; i < 3; i++) { const f = (t * .3 + i / 3) % 1; A(c, '#a5adcb', .5 * (1 - f), ch + Math.round(Math.sin(f * 5 + i)), y - 10 - Math.round(f * 8)) } } },
+  emberTree: { s: (c, x, y, S, p) => emberTree(c, x, y, S, p.h || 6, p.sp || 3), a: (c, x, y, S, p, t) => { for (let i = 0; i < 3; i++) { const f = (t * .6 + i / 3) % 1; A(c, i % 2 ? '#f5a97f' : '#eed49f', 1 - f, x - 2 + i * 2, y - (p.h || 6) - 5 - f * 8) } } },
+  grove: { s: (c, x, y, S, p) => grove(c, x, y, S, p.h || 5, p.a || 3, p.b || 2) },
   pine: { s: (c, x, y, S, p) => pine(c, x, y, S, p.h || 9) },
-  house: { s: (c, x, y, S) => house(c, x, y, S), a: (c, x, y, S, p, t) => { for (let i = 0; i < 3; i++) { const f = (t * .35 + i / 3) % 1; A(c, '#a5adcb', .5 * (1 - f), x + 1 + Math.round(Math.sin(f * 5 + i)), y - 10 - Math.round(f * 9)) } if (S.glow) glowAt(c, x + 1, y - 2, S.win, S.glow * (Math.sin(t * 1.3) > -.8 ? 1 : .6)) } },
+  house: { s: (c, x, y, S, p) => house(c, x, y, S, p.w || 7, p.rf, p.flip), a: (c, x, y, S, p, t) => { for (let i = 0; i < 3; i++) { const f = (t * .35 + i / 3) % 1; A(c, '#a5adcb', .5 * (1 - f), x + 1 + Math.round(Math.sin(f * 5 + i)), y - 10 - Math.round(f * 9)) } if (S.glow) glowAt(c, x + 1, y - 2, S.win, S.glow * (Math.sin(t * 1.3) > -.8 ? 1 : .6)) } },
   // The lamp flickers: its light dips now and then, and a soft glow follows it.
   lamp: { s: (c, x, y, S) => lamp(c, x, y, S), a: (c, x, y, S, p, t) => { const on = Math.sin(t * 1.7 + x) + Math.sin(t * 4.3 + 1) > -1.3; P(c, on ? S.win : '#f5a97f', x, y - 5); glowAt(c, x, y - 5, S.win, (S.glow || .45) * (on ? 1 : .5)) } },
-  crystal: { s: (c, x, y, S) => crystal(c, x, y, S), a: (c, x, y, S, p, t) => { if (S.glow || p.glow) glowAt(c, x, y - 4, '#c6a0f6', .8 + Math.sin(t * 2) * .2) } },
+  crystal: { s: (c, x, y, S, p) => crystal(c, x, y, S, p.dh), a: (c, x, y, S, p, t) => { if (S.glow || p.glow) glowAt(c, x, y - 4, '#c6a0f6', .8 + Math.sin(t * 2) * .2) } },
   coral: { s: (c, x, y, S, p) => coral(c, x, y, p.v) },
   willow: { a: (c, x, y, S, p, t) => { glowAt(c, x, y - 5, '#8bd5ca', .6); willow(c, x, y, t) } },
   spire: { s: (c, x, y) => spire(c, x, y) },
@@ -251,19 +277,37 @@ const BASE_HW = [0, 14, 18, 22, 26];
 // Six evenly spaced slots on the top, rims outermost: spot 0, spot 1, the home prop, spot 4, spot 3, spot 2.
 export const SPOT_X = [-.78, -.47, .78, .47, .16]; // x of each SPOTS entry, as a fraction of hw
 const HOME_X = -.16;
-const HOME = { house: { k: 'house' }, forge: { k: 'house' }, sparks: { k: 'tree', r: 5, h: 4, fruit: 1 }, snow: { k: 'pine', h: 9 }, crystal: { k: 'crystal' }, flowers: { k: 'tree', r: 5, h: 4 } };
+const HOME = { house: 'house', forge: 'forge', sparks: 'emberTree', snow: 'pine', crystal: 'crystal', flowers: 'grove' };
+// Shape parameters for a prop, drawn from its own seed, so the same prop differs from island to island.
+const VARY = {
+  tree: R => ({ r: 4 + (R() * 3 | 0), h: 3 + (R() * 3 | 0), fruit: R() < .3 ? 1 : 0 }),
+  pine: R => ({ h: 7 + (R() * 4 | 0) }),
+  house: R => ({ w: 6 + (R() * 3 | 0), rf: R() * 3 | 0, flip: R() < .5 ? 1 : 0 }),
+  forge: R => ({ w: 6 + (R() * 3 | 0), flip: R() < .5 ? 1 : 0 }),
+  emberTree: R => ({ h: 5 + (R() * 3 | 0), sp: 2 + (R() * 3 | 0) }),
+  grove: (R, T) => ({ h: (T.treeH ? 6 : 4) + (R() * 3 | 0), a: 2 + (R() * 3 | 0), b: 2 + (R() * 3 | 0) }),
+  crystal: R => ({ dh: [0, 0, 0, 0].map(() => (R() * 4 | 0) - 1) }),
+};
+const vary = (k, pseed, T = {}) => { const R = rngf(pseed); return { dx: (R() * 3 | 0) - 1, ...(VARY[k] ? VARY[k](R, T) : {}) } };
+// The type's home centrepiece for an island (stage 3 and up): {k, x, ...shape}, x relative to the top centre.
+export function homeProp(type, seed, hw) {
+  const T = TYPES[type] || {}, k = HOME[T.deco] || 'house', v = vary(k, seed * 53 + 5, T);
+  return { k, ...v, x: Math.round(hw * HOME_X) + v.dx };
+}
 export const BANDS = { far: { k: .7, haze: .55 }, mid: { k: .85, haze: .25 }, near: { k: 1, haze: 0 } };
 
 // spec = {type, seed, stage, picks:[{spot, prop}], gifts:[{spot, kind, variant}], falls:[side], hw, depth, haze}
 export function islandSprite(spec) {
   const st = Math.max(1, Math.min(4, spec.stage || 1)), hw = spec.hw ?? BASE_HW[st], seed = spec.seed || 1, T = TYPES[spec.type] || {};
-  const R = rngf(seed * 131 + 7), at = (k, spot) => ({ k, x: Math.round(SPOT_X[spot] * hw), side: SPOTS[spot].side, seed: seed * 7 + spot });
+  const R = rngf(seed * 131 + 7), at = (k, spot) => { const v = vary(k, seed * 7 + spot, T); return { k, ...v, x: Math.round(SPOT_X[spot] * hw) + v.dx, side: SPOTS[spot].side, seed: seed * 7 + spot } };
   const props = [];
   if (st >= 2) for (let i = 0; i < 2; i++) props.push({ k: 'tuft', x: Math.round((R() * 2 - 1) * hw * .7) });
-  if (st >= 3) props.push({ ...(HOME[T.deco] || HOME.house), x: Math.round(hw * HOME_X) });
+  // Bloom goes down before the picks and the centrepiece, so it never paints over them.
+  if (st >= 4) props.push({ k: 'flowers', x: Math.round(-hw * .62), seed: seed + 11 }, { k: 'flowers', x: Math.round(hw * .32), seed: seed + 12 });
   for (const p of spec.picks || []) if (PROPS[p.prop] && SPOTS[p.spot]) props.push(at(p.prop, p.spot));
   for (const g of spec.gifts || []) if (PROPS[g.kind] && SPOTS[g.spot]) props.push({ ...at(g.kind, g.spot), v: g.variant | 0 });
-  if (st >= 4) props.push({ k: 'flowers', x: Math.round(-hw * .18), seed: seed + 11 }, { k: 'flowers', x: Math.round(hw * .55), seed: seed + 12 });
+  // The centrepiece goes last: it stands in front of whatever grew on the spots beside it.
+  if (st >= 3) props.push(homeProp(spec.type, seed, hw));
   props.sort((a, b) => FLAT.has(b.k) - FLAT.has(a.k));
   return makeIsland({ S: typeStyle(spec.type), hw, depth: spec.depth ?? Math.round(hw * .85), seed, haze: spec.haze || 0, bare: st === 1, props, falls: spec.falls || [], bloom: st >= 4 });
 }
