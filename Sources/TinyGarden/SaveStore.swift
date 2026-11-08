@@ -1,7 +1,8 @@
 import Foundation
 
 /// The save file and its side files, all in one directory: save.json (live), save.prev.json (the map before
-/// "New map"), and save.bad-YYYYMMDD-HHMMSS.json (each save that could not be read, kept, never overwritten).
+/// "New map"), save.v1.json (a v1 save set aside; a later one gets save.v1-YYYYMMDD-HHMMSS.json), and
+/// save.bad-YYYYMMDD-HHMMSS.json (each save that could not be read, kept, never overwritten).
 struct SaveStore {
   let dir: URL
 
@@ -54,15 +55,22 @@ struct SaveStore {
     }
   }
 
-  /// A v1 save is a different game: keep it as save.v1.json (replacing an earlier one in a single step) so a new game can start.
+  /// A v1 save is a different game: keep it as save.v1.json so a new game can start. An existing save.v1.json is
+  /// never overwritten: a later v1 save goes to save.v1-YYYYMMDD-HHMMSS.json instead.
   @discardableResult
-  func keepV1() -> Bool {
+  func keepV1(now: Date = Date()) -> Bool {
     let fm = FileManager.default
     guard fm.fileExists(atPath: file.path) else { return false }
+    var dest = v1File
+    if fm.fileExists(atPath: dest.path) {
+      let stem = "save.v1-" + Self.stamp.string(from: now)
+      dest = dir.appendingPathComponent(stem + ".json")
+      var k = 2
+      while fm.fileExists(atPath: dest.path) { dest = dir.appendingPathComponent("\(stem)-\(k).json"); k += 1 }
+    }
     do {
-      if fm.fileExists(atPath: v1File.path) { _ = try fm.replaceItemAt(v1File, withItemAt: file) }
-      else { try fm.moveItem(at: file, to: v1File) }
-      log("save: \(file.lastPathComponent) -> \(v1File.lastPathComponent)")
+      try fm.moveItem(at: file, to: dest)
+      log("save: \(file.lastPathComponent) -> \(dest.lastPathComponent)")
       return true
     } catch {
       log("save: keepV1 failed: \(error.localizedDescription)")
