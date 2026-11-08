@@ -24,16 +24,18 @@ import { wireDock, syncDock, setSpeed, askNewMap } from './ui/dock.js';
 import { wireInput } from './ui/input.js';
 import { wireCard, openCard, closeCard, renderTray } from './ui/card.js';
 import { PixCtx } from './core/pixctx.js';
+import { present } from './core/present.js';
 
 const SAVE_MS = 30000;
-// Wallpaper is a quiet background. Each frame WebKit puts on screen costs about 1% of a core on a big display
-// (more the more screen it covers), so the map draws 3 times a second and skips frames that didn't change,
-// the galaxy turns slowly every frame, and the full-screen sky around the map repaints every 10 s.
+// Wallpaper is a quiet background that still moves smoothly: the map draws 10 times a second (walkers,
+// waterfalls, events, twinkling), but WebKit's cost per frame grows with the area it puts on screen, so only the
+// rows that changed are put (core/present.js), a frame that didn't change puts nothing, and the full-screen sky
+// around the map repaints every 10 s.
 // docs/TIMINGS.md has the measurements.
 // The close-up's dawn planet body is per-pixel, so it re-renders every 4 s in wallpaper (every 0.5 s in play).
-// The wallpaper galaxy turns at 0.2 of play's spin in steps of 2/3 s (every other frame), so the disc edge moves
+// The wallpaper galaxy turns at 0.2 of play's spin in steps of 2/3 s (about every 7th frame), so the disc edge moves
 // 0.75 px a step and reads as smooth; the disc costs about 2.5 ms to recompute at 688x288 (docs/TIMINGS.md).
-const WALL_MS = 333, SKY_MS = 10000, GAL_WALL_SPIN = .2, GAL_WALL_STEP = 1.5, DAWN_STEP = 4;
+const WALL_MS = 100, SKY_MS = 10000, GAL_WALL_SPIN = .2, GAL_WALL_STEP = 1.5, DAWN_STEP = 4;
 const $ = id => document.getElementById(id);
 const bridge = () => window.webkit?.messageHandlers?.garden;
 const post = msg => { try { bridge()?.postMessage(msg) } catch (e) { /* no host */ } };
@@ -86,7 +88,7 @@ function tick() {
     if (now - lastSave >= SAVE_MS) save();
   } finally { schedule() }
 }
-// Play runs on animation frames; wallpaper ticks 3 times a second.
+// Play runs on animation frames; wallpaper ticks 10 times a second.
 function schedule() {
   if (paused || timer || raf) return;
   if (app.mode === 'play') raf = requestAnimationFrame(tick); else timer = setTimeout(tick, WALL_MS);
@@ -95,7 +97,7 @@ function unschedule() { if (raf) cancelAnimationFrame(raf); if (timer) clearTime
 
 // ---------- drawing ----------
 // Every view, in both modes, is drawn in JS (PixCtx) at the view's own canvas size (layout below), and only a
-// frame whose pixels changed is put into #map. The same buffer is what the galaxy and system names are placed
+// frame's changed rows are put into #map. The same buffer is what the galaxy and system names are placed
 // around (ui/tags.js renderNames).
 const art = { pix: null, prev: null, w: 0, h: 0, s: 1, view: null };
 app.art = art;
@@ -108,13 +110,8 @@ function drawMain(force = false) {
   else if (v === 'system') drawSystem(c, game, t, play ? ui.sysSel : null, art.w, art.h);
   else if (v === 'close') { const n = closeSubject(w), rt = play ? Math.floor(t * 2) / 2 : Math.floor(t / DAWN_STEP) * DAWN_STEP; if (n) islandView(c, w, n, t, art.w, art.h, rt); else planetView(c, game, w, t, art.w, art.h) }
   else drawCity(c, game, w, t, app.cityView(), play ? { drag: app.drag, pointer: app.pointer, tool: app.tool, armedGift: app.armedGift, card: app.card } : null);
-  art.view = v; present(force);
+  art.view = v; present(app.mapCtx, c, art.prev, force);
   const p = performance.now(); if (play || p - lastSky >= SKY_MS - 4) { lastSky = p; drawSky(t) }
-}
-function present(force) {
-  const px = art.pix.px, prev = art.prev; let changed = force;
-  for (let i = 0; !changed && i < px.length; i++) if (px[i] !== prev[i]) changed = true;
-  if (changed) { prev.set(px); app.mapCtx.putImageData(art.pix.img, 0, 0) }
 }
 // The close-up shows the world's selected island, otherwise its town.
 function closeSubject(w) { const S = w.S, n = S.sel && S.sel.t === 'node' ? node(w, S.sel.id) : null; return n && n.kind === 'island' ? n : null }
