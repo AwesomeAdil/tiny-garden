@@ -45,7 +45,7 @@ export function offers(w, n, i) {
   if (i === 4 || !SPOTS[i]) return [];
   const kind = spotKind(w, n, i);
   const taken = Object.values(n.spots).map(s => s.pick);
-  let c = kind.kind === 'pier' ? PIER_PICKS[kind.good] : MID_PICKS[n.id].filter(x => !taken.includes(x.id));
+  let c = (kind.kind === 'pier' ? PIER_PICKS[kind.good] : MID_PICKS[n.id]).filter(x => !taken.includes(x.id));
   c = c.filter(x => !x.sends || (!n.sends && !makes(w, n).includes(x.sends)));
   const r = rngf(n.seed * 31 + i), a = c.slice();
   for (let j = a.length - 1; j > 0; j--) { const k = Math.floor(r() * (j + 1)); [a[j], a[k]] = [a[k], a[j]] }

@@ -111,10 +111,35 @@ test('rename cleans and limits names', () => {
   assert.equal(n.name, 'ABCDEFGHIJ');
 });
 
-test('every type has enough mid picks and a sends pick for each good', () => {
+test('every type has enough picks across its stages and a sends pick for each good it does not make', () => {
   for (const def of [DEF_OCEAN, DEF_LAVA]) for (const id of Object.keys(def.isl)) {
+    const made = def.isl[id].makes;
     assert.ok(MID_PICKS[id] && MID_PICKS[id].length >= 4, id);
     for (const p of MID_PICKS[id]) { assert.ok(p.id && p.name && p.prop, id); assert.ok(!p.sends) }
+    const piers = GOODS.flatMap(k => PIER_PICKS[k]).filter(p => p.sends !== made);
+    assert.ok(MID_PICKS[id].length + piers.length >= 6, `${id} total picks`);
+    for (const k of GOODS) if (k !== made) assert.ok(PIER_PICKS[k].some(p => p.sends === k), `${id} sends ${k}`);
   }
-  for (const k of GOODS) assert.ok(PIER_PICKS[k].some(p => p.sends === k), k);
+});
+
+test('the same pier pick is not offered or chosen twice', () => {
+  const w = bare(3), h = at(w, 'home', 300, 150);
+  tie(w, h, at(w, 'frost', 200, 150));      // water in from the left
+  tie(w, h, at(w, 'verdant', 400, 150));    // water in from the right
+  h.stage = 3;
+  assert.deepEqual(spotKind(w, h, 0), { kind: 'pier', good: 'water' });
+  assert.deepEqual(spotKind(w, h, 2), { kind: 'pier', good: 'water' });
+  const pick = offers(w, h, 0).find(p => !p.sends).id;
+  assert.equal(choose(w, h, 0, pick), true);
+  assert.ok(!offers(w, h, 2).some(p => p.id === pick));
+  assert.equal(choose(w, h, 2, pick), false);
+});
+
+test('a partly paid stage does not grow', () => {
+  const w = bare(3), h = node(w, 'home'), c = cost(w, h);
+  h.paid.water = c.water; h.paid.light = c.light - 1;
+  grow(w);
+  assert.equal(h.stage, 1);
+  h.paid.light = c.light; grow(w);
+  assert.equal(h.stage, 2);
 });
