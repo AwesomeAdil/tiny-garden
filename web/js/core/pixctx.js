@@ -3,6 +3,8 @@
 // so this context runs them in plain JS into one pixel buffer. A real canvas would send each of those
 // thousands of 1-pixel rects to WebKit's GPU process every frame.
 // Blending is source-over onto an opaque buffer, the same as the canvas (give or take 1 in 255 from rounding).
+// With {transparent:true} the buffer starts at alpha 0 and blends with proper "over", so it can hold a sprite
+// that blit() later draws onto another PixCtx.
 const parsed = new Map();
 let probe = null;
 function rgbaOf(s) {
@@ -20,9 +22,9 @@ const icons = new WeakMap();
 const iconPixels = src => { let d = icons.get(src); if (!d) { d = src.getContext('2d').getImageData(0, 0, src.width, src.height).data; icons.set(src, d) } return d };
 
 export class PixCtx {
-  constructor(w, h) {
+  constructor(w, h, o = {}) {
     this.width = w; this.height = h; this.img = new ImageData(w, h); this.px = new Uint32Array(this.img.data.buffer); this.d = this.img.data;
-    this.globalAlpha = 1; this._style = '#000000'; this._rgba = [0, 0, 0, 255]; this.tx = 0; this.ty = 0;
+    this.transparent = !!o.transparent; this.globalAlpha = 1; this._style = '#000000'; this._rgba = [0, 0, 0, 255]; this.tx = 0; this.ty = 0;
   }
   set fillStyle(s) { if (s !== this._style) { this._style = s; this._rgba = rgbaOf(s) } }
   get fillStyle() { return this._style }
@@ -41,8 +43,32 @@ export class PixCtx {
     if (a <= 0) return;
     if (a >= 1) { const c = (255 << 24 | b << 16 | g << 8 | r) >>> 0; for (let yy = y0; yy < y1; yy++) this.px.fill(c, yy * W + x0, yy * W + x1); return }
     const d = this.d, k = 1 - a, ra = r * a, ga = g * a, ba = b * a;
+    if (this.transparent) { for (let yy = y0; yy < y1; yy++) for (let i = (yy * W + x0) * 4, e = (yy * W + x1) * 4; i < e; i += 4) this._over(i, r, g, b, a); return }
     for (let yy = y0; yy < y1; yy++) for (let i = (yy * W + x0) * 4, e = (yy * W + x1) * 4; i < e; i += 4) {
       d[i] = ra + d[i] * k; d[i + 1] = ga + d[i + 1] * k; d[i + 2] = ba + d[i + 2] * k; d[i + 3] = 255;
+    }
+  }
+
+  // Source-over of (r,g,b) at alpha a (0..1) onto byte i. An opaque buffer stays opaque; a transparent one
+  // keeps the colour un-premultiplied with the combined alpha, so nothing is blended with black.
+  _over(i, r, g, b, a) {
+    const d = this.d, k = 1 - a;
+    if (!this.transparent) { d[i] = r * a + d[i] * k; d[i + 1] = g * a + d[i + 1] * k; d[i + 2] = b * a + d[i + 2] * k; d[i + 3] = 255; return }
+    const da = d[i + 3] / 255 * k, oa = a + da;
+    if (oa <= 0) return;
+    d[i] = (r * a + d[i] * da) / oa; d[i + 1] = (g * a + d[i + 1] * da) / oa; d[i + 2] = (b * a + d[i + 2] * da) / oa; d[i + 3] = oa * 255;
+  }
+
+  // Another PixCtx's pixels at (x, y), source-over; fully transparent pixels are skipped and opaque ones copied.
+  blit(src, x, y) {
+    x = Math.round(x + this.tx); y = Math.round(y + this.ty);
+    const sw = src.width, W = this.width, sp = src.px, sd = src.d, px = this.px, ga = Math.max(0, Math.min(1, this.globalAlpha));
+    if (ga <= 0) return;
+    const i0 = Math.max(0, -x), i1 = Math.min(sw, W - x), j0 = Math.max(0, -y), j1 = Math.min(src.height, this.height - y);
+    for (let j = j0; j < j1; j++) for (let i = i0, si = j * sw + i0, di = (y + j) * W + x + i0; i < i1; i++, si++, di++) {
+      const a8 = sd[si * 4 + 3]; if (!a8) continue;
+      if (a8 === 255 && ga >= 1) { px[di] = sp[si]; continue }
+      this._over(di * 4, sd[si * 4], sd[si * 4 + 1], sd[si * 4 + 2], a8 / 255 * ga);
     }
   }
 
@@ -58,13 +84,13 @@ export class PixCtx {
 
   // Small icon canvases, drawn unscaled at whole pixels.
   drawImage(src, x, y) {
-    const s = iconPixels(src), sw = src.width, sh = src.height, W = this.width, d = this.d, ga = Math.max(0, Math.min(1, this.globalAlpha));
+    if (src instanceof PixCtx) return this.blit(src, x, y);
+    const s = iconPixels(src), sw = src.width, sh = src.height, W = this.width, ga = Math.max(0, Math.min(1, this.globalAlpha));
     x = Math.round(x + this.tx); y = Math.round(y + this.ty);
     for (let j = 0; j < sh; j++) { const ty = y + j; if (ty < 0 || ty >= this.height) continue;
       for (let i = 0; i < sw; i++) { const tx = x + i; if (tx < 0 || tx >= W) continue;
         const si = (j * sw + i) * 4, a = s[si + 3] / 255 * ga; if (a <= 0) continue;
-        const di = (ty * W + tx) * 4, k = 1 - a;
-        d[di] = s[si] * a + d[di] * k; d[di + 1] = s[si + 1] * a + d[di + 1] * k; d[di + 2] = s[si + 2] * a + d[di + 2] * k; d[di + 3] = 255;
+        this._over((ty * W + tx) * 4, s[si], s[si + 1], s[si + 2], a);
       }
     }
   }
