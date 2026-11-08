@@ -62,6 +62,21 @@ test('catch-up fires at most one event', () => {
   assert.ok(g.ev.active);
 });
 
+test('a game saved mid-event gives one gift when caught up, not two', () => {
+  const g = newGame(5), w = W0(g);
+  w.S.time = g.ev.nextAt;
+  stepEvents(g, 0.1);
+  assert.ok(g.ev.active);
+  g.ev.nextAt = w.S.time + 10;
+  advance(g, 12 * 3600, 'wallpaper', { catchup: true });
+  endCatchup(g);
+  assert.equal(g.gifts.length, 1);
+  assert.equal(g.ev.active, null);
+  assert.equal(w.events.filter(e => /while you were away/.test(e.msg)).length, 1);
+  advance(g, 600, 'wallpaper');
+  assert.equal(g.gifts.length, 1, 'nothing left over resolves afterwards');
+});
+
 test('catch-up with caught already set only reschedules', () => {
   const g = newGame(5); g.ev.caught = true; g.ev.nextAt = 10;
   advance(g, 3600, 'wallpaper', { catchup: true });

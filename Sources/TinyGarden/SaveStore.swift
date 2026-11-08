@@ -12,6 +12,7 @@ struct SaveStore {
 
   var file: URL { dir.appendingPathComponent("save.json") }
   var prevFile: URL { dir.appendingPathComponent("save.prev.json") }
+  var v1File: URL { dir.appendingPathComponent("save.v1.json") }
 
   /// What load() found: no save yet, a save's bytes, or a save.json that exists but can't be read.
   enum Loaded: Equatable { case none, data(Data), unreadable }
@@ -49,6 +50,22 @@ struct SaveStore {
       return true
     } catch {
       log("save: archive failed: \(error.localizedDescription)")
+      return false
+    }
+  }
+
+  /// A v1 save is a different game: keep it as save.v1.json (replacing an earlier one in a single step) so a new game can start.
+  @discardableResult
+  func keepV1() -> Bool {
+    let fm = FileManager.default
+    guard fm.fileExists(atPath: file.path) else { return false }
+    do {
+      if fm.fileExists(atPath: v1File.path) { _ = try fm.replaceItemAt(v1File, withItemAt: file) }
+      else { try fm.moveItem(at: file, to: v1File) }
+      log("save: \(file.lastPathComponent) -> \(v1File.lastPathComponent)")
+      return true
+    } catch {
+      log("save: keepV1 failed: \(error.localizedDescription)")
       return false
     }
   }

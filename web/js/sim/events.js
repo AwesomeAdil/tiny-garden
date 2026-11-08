@@ -40,6 +40,17 @@ function leave(game, kind, variant) {
 export function stepEvents(game, dt, opts = {}) {
   const ev = game.ev, w0 = game.worlds[0], t = w0.S.time;
   if (opts.catchup) {
+    // A game saved mid-event: that event is the one catch-up event (no second one fires after it).
+    if (ev.active) {
+      const a = ev.active;
+      ev.active = null;
+      if (!ev.caught) {
+        leave(game, a.kind, a.variant);
+        w0.events.push({ msg: EVENTS[a.kind].line, warn: false });
+        ev.caught = true;
+      }
+      return;
+    }
     if (t < ev.nextAt) return;
     if (!ev.caught) {
       const kind = KINDS[Math.floor(draw(ev) * KINDS.length)], variant = Math.floor(draw(ev) * 6);

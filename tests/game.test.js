@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { newGame, advance, catchUp } from '../web/js/sim/game.js';
 import { WORLD_DEFS } from '../web/js/sim/content.js';
 import { autoNet } from './helpers.js';
+import { serialize } from '../web/js/sim/save.js';
 
 test('newGame has no bridges', () => {
   const g = newGame(3);
@@ -22,8 +23,7 @@ test('catch-up equals playing it live', () => {
   const A = mk(), B = mk();
   advance(A, 600, 'wallpaper');
   for (let i = 0; i < 6000; i++) advance(B, .1, 'wallpaper');
-  // save.js is rewritten in Task 6, so compare the sim state directly.
-  assert.deepEqual(A.worlds.map(w => w.S), B.worlds.map(w => w.S));
+  assert.deepEqual(serialize(A, 1), serialize(B, 1));
   assert.ok(A.worlds[0].S.time > 599.9);
 });
 

@@ -221,7 +221,12 @@ window.garden = {
     if (opts && typeof opts.topInset === 'number' && opts.topInset >= 0) topInset = opts.topInset;
     let game = null;
     // A save that won't parse, or parses but throws when stepped or drawn (boot.js), is set aside for a new game.
-    if (saveObj != null) { game = trialLoad(saveObj, () => new PixCtx(688, 288)); if (!game) post({ type: 'bad-save' }) }
+    if (saveObj != null) {
+      const r = trialLoad(saveObj, () => new PixCtx(688, 288));
+      if (!r) post({ type: 'bad-save' });
+      else if (r.old) post({ type: 'old-save' });
+      else game = r.game;
+    }
     if (!game) { game = newGame(randSeed()); game.savedAt = nowMs }
     start(game, mode, nowMs);
   },
