@@ -152,7 +152,24 @@ What the probes say:
 Wallpaper at 6 fps (`WALL_MS = 167`). The twinkling stars are on 6 CSS-animated layers over the map
 (core/stars.js), so the canvas only changes where walkers, waterfalls and events move. In Node (city, 1/6 s
 frames) the repaint box goes from 91% of the canvas to 3.3% in a fresh game (33 of 60 frames put nothing) and
-31% mid-game. The on-device CPU run is pending: the desktop was covered (garden paused) for the whole window I had.
+31% mid-game. On-device, same method as above (city):
+
+| Date | Build | View | Frames | app | WebContent | GPU | **Total** | Run |
+|---|---|---|---|---|---|---|---|---|
+| 2026-11-08 | 6 stars layers, step-end CSS animation | city | 6 fps | 1.8 | 5.1 | 5.6 | **12.6** | 5 min |
+| 2026-11-08 | probe: same, animation off (static stars) | city | 6 fps | 0.7 | 3.1 | 2.2 | **6.0** | 2 min |
+| 2026-11-08 | probe: same, linear CSS animation | city | 6 fps | 0.9 | 3.3 | 2.5 | **6.7** (WindowServer 41, up from ~17–25) | 2 min |
+| 2026-11-08 | opacity stepped by JS on wallpaper frames (c4ce8e6) | city | 6 fps | 0.9 | 3.5 | 4.0 | **8.4** (ps %cpu 7.2) | 2 min (cut short: the app was reinstalled) |
+- WebKit doesn't run a stepped (`step-end`) CSS animation on the compositor: every step of every group is a
+  rendering update of its own, which costs about as much as a frame. A linear animation runs on the compositor,
+  and the app and its helpers stay at 6.7, but WindowServer then recomposites the screen 60 times a second
+  (+15–20 points there).
+- Stepping the opacity from JS on the frames the wallpaper draws anyway adds about 2.4 over static stars. The
+  6 group layers are full-screen, so each opacity step still recomposites a full-screen layer.
+- The 5-minute city and 2-minute galaxy runs on the final installed build were still waiting (screens asleep) when
+  this was written.
+- Static stars at 6 fps cost 6.0. That floor is the walkers, waterfalls and events at 6 fps: their box is about
+  31% of the canvas mid-game, and each frame has a fixed per-frame cost.
 
 | Date | Task | Size | Wall-clock | Source |
 |---|---|---|---|---|
