@@ -47,7 +47,7 @@ function traveller(c, w, view, t, p, variant) {
   const W = view.w, list = w ? isl(w).slice().sort((a, b) => b.x - a.x) : [], n = list.length ? list[variant % Math.min(3, list.length)] : null;
   const by0 = Math.round(Math.sin(t * 1.2));
   if (!n) { const bx = Math.round(W + 12 - p * (W + 24)), by = Math.max(20, view.oy + 60) + by0; boat(c, bx, by); trav(c, bx - 2, by, 0, -1, COL.light); return }
-  const I = getSprite(w, n, bandOf(n.y)), X = Math.round(view.ox + n.x), Y = Math.round(view.oy + n.y + isleBob(n, t)), dock = X + I.hw + 13, stand = X + Math.round(I.hw * .35);
+  const k = view.k || 1, I = getSprite(w, n, bandOf(n.y), k), X = Math.round(view.ox + n.x * k), Y = Math.round(view.oy + n.y * k) + isleBob(n, t), dock = X + I.hw + 13, stand = X + Math.round(I.hw * .35);
   const by = Y - 2 + by0, sail = (f, a, b) => Math.round(a + (b - a) * f);
   if (p < .4) { const bx = sail(p / .4, W + 12, dock); boat(c, bx, by); trav(c, bx - 2, by, 0, -1, COL.light); return }
   boat(c, p < .85 ? dock : sail((p - .85) / .15, dock, W + 12), by);
@@ -55,7 +55,7 @@ function traveller(c, w, view, t, p, variant) {
   else { trav(c, stand, Y - 1, 0, 1, COL.light); glowAt(c, stand + 2, Y - 4, '#eed49f', .5) }
 }
 
-// drawEvent(c, game, view, t, w?): view = {w, h, ox, oy} in canvas pixels; w is the world on screen (the
+// drawEvent(c, game, view, t, w?): view = {w, h, k, ox, oy} (core/pixel.js worldView), drawn in canvas pixels; w is the world on screen (the
 // traveller lands on one of its islands; defaults to the event's world).
 export function drawEvent(c, game, view, t, w) {
   const ev = game.ev, a = ev && ev.active;

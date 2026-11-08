@@ -9,13 +9,13 @@ const { skip } = await import('../web/js/sim/dev.js');
 const { serialize, deserialize } = await import('../web/js/sim/save.js');
 const { isl, node } = await import('../web/js/sim/world.js');
 const { PixCtx } = await import('../web/js/core/pixctx.js');
-const { worldOffset } = await import('../web/js/core/pixel.js');
+const { worldView } = await import('../web/js/core/pixel.js');
 const { drawCity, nodeAt, citySky } = await import('../web/js/draw/city.js');
 const { drawEvent } = await import('../web/js/draw/events.js');
 const { EVENTS } = await import('../web/js/sim/events.js');
 const { drawGalaxy, galAt, GSYS } = await import('../web/js/draw/galaxy.js');
 
-const view = (W, H) => ({ w: W, h: H, ...worldOffset(W, H) });
+const view = (W, H) => ({ w: W, h: H, ...worldView(W, H) });
 const trip = o => JSON.parse(JSON.stringify(o));
 
 test('drawCity never writes to the game', () => {
@@ -82,6 +82,19 @@ test('nodeAt finds islands and the town in world units', () => {
   for (const n of isl(w)) assert.equal(nodeAt(w, { x: n.x, y: n.y + 2 }), n, n.id);
   assert.equal(nodeAt(w, { x: w.hub.x, y: w.hub.y - 2 }), node(w, 'planet'));
   assert.equal(nodeAt(w, { x: -500, y: -500 }), null);
+  // a canvas point with its view is mapped back by k first
+  const v = view(1146, 480);
+  for (const n of isl(w)) assert.equal(nodeAt(w, { x: v.ox + n.x * v.k, y: v.oy + (n.y + 2) * v.k }, v), n, n.id + ' (canvas)');
+});
+
+test('islands are drawn natively at the view scale', async () => {
+  const { getSprite, bandOf, BASE_HW, BANDS } = await import('../web/js/draw/kit.js');
+  const game = skip(newGame(3)), w = game.worlds[0], v = view(1146, 480);
+  for (const n of isl(w)) {
+    const s1 = getSprite(w, n, bandOf(n.y), 1), sk = getSprite(w, n, bandOf(n.y), v.k);
+    assert.equal(sk.hw, Math.round(BASE_HW[n.stage] * BANDS[bandOf(n.y)].k * v.k));
+    assert.ok(sk.w > s1.w && sk !== s1, 'a bigger sprite, built anew');
+  }
 });
 
 test('the home system is clickable in the galaxy', () => {

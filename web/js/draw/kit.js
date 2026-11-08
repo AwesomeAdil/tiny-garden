@@ -311,9 +311,11 @@ export function islandSprite(spec) {
   const st = Math.max(1, Math.min(4, spec.stage || 1)), hw = spec.hw ?? BASE_HW[st], seed = spec.seed || 1, T = TYPES[spec.type] || {};
   const R = rngf(seed * 131 + 7), at = (k, spot) => { const v = vary(k, seed * 7 + spot, T); return { k, ...v, x: Math.round(SPOT_X[spot] * hw) + v.dx, side: SPOTS[spot].side, seed: seed * 7 + spot } };
   const props = [];
-  if (st >= 2) for (let i = 0; i < 2; i++) props.push({ k: 'tuft', x: Math.round((R() * 2 - 1) * hw * .7) });
+  // Small ground cover grows with the island's width (a bigger view builds a wider island with more of it,
+  // never bigger props): tufts from stage 2, and the bloom's flower beds at stage 4.
+  if (st >= 2) for (let i = 0, n = Math.max(2, Math.round(hw / 9)); i < n; i++) props.push({ k: 'tuft', x: Math.round((R() * 2 - 1) * hw * .8) });
   // Bloom goes down before the picks and the centrepiece, so it never paints over them.
-  if (st >= 4) props.push({ k: 'flowers', x: Math.round(-hw * .62), seed: seed + 11 }, { k: 'flowers', x: Math.round(hw * .32), seed: seed + 12 });
+  if (st >= 4) { props.push({ k: 'flowers', x: Math.round(-hw * .62), seed: seed + 11 }, { k: 'flowers', x: Math.round(hw * .32), seed: seed + 12 }); for (let i = 0, n = Math.floor(hw / 22); i < n; i++) props.push({ k: 'flowers', x: Math.round((R() * 2 - 1) * hw * .7), seed: seed + 13 + i }) }
   for (const p of spec.picks || []) if (PROPS[p.prop] && SPOTS[p.spot]) props.push(at(p.prop, p.spot));
   for (const g of spec.gifts || []) if (PROPS[g.kind] && SPOTS[g.spot]) props.push({ ...at(g.kind, g.spot), v: g.variant | 0 });
   // The centrepiece goes last: it stands in front of whatever grew on the spots beside it.
@@ -324,9 +326,11 @@ export function islandSprite(spec) {
 
 const PICK_PROP = Object.fromEntries([...Object.values(PIER_PICKS), ...Object.values(MID_PICKS)].flat().map(p => [p.id, p.prop]));
 const RIMS = SPOTS.filter(s => s.side !== 0).map(s => s.i);
-// The sprite spec for island n in depth band 'far' | 'mid' | 'near'. A fall forms on a rim with a waterfall
-// pick, and on any rim where a bridge brings water in.
-export function islandSpec(w, n, band) {
+// The sprite spec for island n in depth band 'far' | 'mid' | 'near', drawn at view scale k (the city's
+// world-to-canvas factor): hw is BASE_HW x band x k, so a bigger view gets a bigger, more detailed island
+// (props keep their pixel size). A fall forms on a rim with a waterfall pick, and on any rim where a bridge
+// brings water in.
+export function islandSpec(w, n, band, k = 1) {
   const B = BANDS[band] || BANDS.near, st = Math.max(1, Math.min(4, n.stage || 1)), picks = [], gifts = [], falls = new Set();
   for (const [i, s] of Object.entries(n.spots || {})) {
     if (s.pick && PICK_PROP[s.pick]) picks.push({ spot: +i, prop: PICK_PROP[s.pick] });
@@ -337,12 +341,12 @@ export function islandSpec(w, n, band) {
     const k = spotKind(w, n, i); if (k.kind === 'pier' && k.good === 'water') falls.add(SPOTS[i].side);
   }
   const piers = w.S.ropes.filter(r => r.a === n.id || r.b === n.id).map(r => pierSide(w, n, r.id)).sort();
-  const hw = Math.round(BASE_HW[st] * B.k);
+  const hw = Math.max(4, Math.round(BASE_HW[st] * B.k * k));
   return { type: n.id, seed: n.seed, stage: st, picks, gifts, falls: [...falls].sort(), piers, hw, depth: Math.round(hw * .85), haze: B.haze };
 }
-const keyOf = (w, s, band) => `${w.def.key}|${s.type}|seed:${s.seed}|st:${s.stage}|p:${s.picks.map(p => p.spot + p.prop)}|g:${s.gifts.map(g => g.spot + g.kind + g.variant)}|piers:${s.piers}|falls:${s.falls}|${band}`;
+const keyOf = (w, s, band) => `${w.def.key}|${s.type}|seed:${s.seed}|st:${s.stage}|p:${s.picks.map(p => p.spot + p.prop)}|g:${s.gifts.map(g => g.spot + g.kind + g.variant)}|piers:${s.piers}|falls:${s.falls}|hw:${s.hw}|${band}`;
 // Changes only with the seed, stage, picks, gifts, pier sides, falls or band (never with time or walkers).
-export const islandKey = (w, n, band) => keyOf(w, islandSpec(w, n, band), band);
+export const islandKey = (w, n, band, k = 1) => keyOf(w, islandSpec(w, n, band, k), band);
 export const SPRITES = new Map(); // LRU, at most 64
 // A per-node memo of the key, so a frame where nothing changed skips islandSpec (a filter, a sort and a
 // spotKind per rim). The stamp holds everything the spec reads: the node's seed, stage, spot and gift counts
@@ -350,8 +354,8 @@ export const SPRITES = new Map(); // LRU, at most 64
 // end's x (the pier side) and sends (what arrives there).
 export const SPEC_STATS = { builds: 0 };
 const MEMO = new WeakMap();
-function stampOf(w, n, band) {
-  let s = `${w.def.key}|${n.seed}|${n.stage}|${n.spots ? Object.keys(n.spots).length : 0}|${n.gifts ? n.gifts.length : 0}|${n.x},${n.y}|${band}`;
+function stampOf(w, n, band, k) {
+  let s = `${w.def.key}|${k}|${n.seed}|${n.stage}|${n.spots ? Object.keys(n.spots).length : 0}|${n.gifts ? n.gifts.length : 0}|${n.x},${n.y}|${band}`;
   for (const r of w.S.ropes) {
     if (r.a !== n.id && r.b !== n.id) continue;
     const o = w.S.nodes.find(q => q.id === (r.a === n.id ? r.b : r.a));
@@ -359,15 +363,15 @@ function stampOf(w, n, band) {
   }
   return s;
 }
-export function getSprite(w, n, band) {
+export function getSprite(w, n, band, k = 1) {
   let M = MEMO.get(n); if (!M) MEMO.set(n, M = {});
-  const stamp = stampOf(w, n, band);
+  const stamp = stampOf(w, n, band, k);
   let e = M[band];
-  if (!e || e.stamp !== stamp) { const spec = islandSpec(w, n, band); SPEC_STATS.builds++; e = M[band] = { stamp, spec, key: keyOf(w, spec, band) } }
-  const k = e.key, spec = e.spec;
-  let s = SPRITES.get(k);
-  if (s) { SPRITES.delete(k); SPRITES.set(k, s); return s }
-  s = islandSprite(spec); SPRITES.set(k, s);
+  if (!e || e.stamp !== stamp) { const spec = islandSpec(w, n, band, k); SPEC_STATS.builds++; e = M[band] = { stamp, spec, key: keyOf(w, spec, band) } }
+  const key = e.key, spec = e.spec;
+  let s = SPRITES.get(key);
+  if (s) { SPRITES.delete(key); SPRITES.set(key, s); return s }
+  s = islandSprite(spec); SPRITES.set(key, s);
   if (SPRITES.size > 64) SPRITES.delete(SPRITES.keys().next().value);
   return s;
 }

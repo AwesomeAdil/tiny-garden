@@ -33,3 +33,9 @@ export const viewScale = (dW, dH) => {
 };
 // Where the world's top-left sits on a w x h canvas (the world is centred).
 export const worldOffset = (w, h) => ({ ox: Math.floor((w - WORLD_W) / 2), oy: Math.floor((h - WORLD_H) / 2) });
+// How drawing maps the world onto a w x h canvas: canvas = world * k + (ox, oy), k = min(w/640, h/300), centred.
+// The sim stays in world units; sprites are built natively at the mapped size, never scaled bitmaps.
+export const worldView = (w, h) => { const k = Math.min(w / WORLD_W, h / WORLD_H); return { k, ox: Math.floor((w - WORLD_W * k) / 2), oy: Math.floor((h - WORLD_H * k) / 2) } };
+// A canvas point back to world units, and a world point onto the canvas, for a view {k, ox, oy}.
+export const toWorld = (v, p) => ({ x: (p.x - v.ox) / (v.k || 1), y: (p.y - v.oy) / (v.k || 1) });
+export const toCanvas = (v, x, y) => [v.ox + x * (v.k || 1), v.oy + y * (v.k || 1)];

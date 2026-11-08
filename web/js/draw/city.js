@@ -5,7 +5,11 @@
 // The sky, the stars that never twinkle, the sun, the planet curve and the town's houses are drawn once into a
 // cached background (keyed on the canvas size, the world and the town's stage); each frame copies it in and
 // draws only the islands, bridges, walkers, lamps, glows and the event on top.
-import { TAU, P, clamp } from '../core/pixel.js';
+//
+// Coordinates (Ruling 9): the sim is in 640x300 world units; everything here is drawn in canvas pixels, at
+// canvas = world * view.k + (view.ox, view.oy) (core/pixel.js worldView). Island sprites are built natively at
+// hw x k; bridges, piers, walkers, glows and the town keep their native pixel sizes.
+import { TAU, P, clamp, toWorld, toCanvas } from '../core/pixel.js';
 import { PixCtx } from '../core/pixctx.js';
 import { COL } from '../core/palette.js';
 import { MAXR, TOWN } from '../sim/content.js';
@@ -21,7 +25,7 @@ const S = STY.book, IDLE = '#494d64', BAND_ORDER = ['far', 'mid', 'near'];
 // TIDE's curve: its top at world y TOWN.y - 6, centred on the town, wide enough that the bottom row is planet
 // from edge to edge. All in canvas pixels.
 export function horizon(view) {
-  const top = view.oy + TOWN.y - 6, cx = view.ox + TOWN.x, d = Math.max(8, view.h - 1 - top), half = Math.max(cx, view.w - cx) + 6;
+  const k = view.k || 1, top = Math.round(view.oy + (TOWN.y - 6) * k), cx = Math.round(view.ox + TOWN.x * k), d = Math.max(8, view.h - 1 - top), half = Math.max(cx, view.w - cx) + 6;
   const r = (half * half + d * d) / (2 * d);
   return { cx, top, r, cy: top + r, surf: x => top + r - Math.sqrt(Math.max(0, r * r - (x - cx) * (x - cx))) };
 }
@@ -50,7 +54,7 @@ export function townLayout(view, stage) {
 // ---------- the cached background ----------
 const BGS = new Map();
 export function cityBackground(game, w, view) {
-  const W = view.w, Hh = view.h, stage = w.hub.stage, key = [W, Hh, view.ox, view.oy, w.def.key, skySeed(game, w), stage].join();
+  const W = view.w, Hh = view.h, stage = w.hub.stage, key = [W, Hh, view.k || 1, view.ox, view.oy, w.def.key, skySeed(game, w), stage].join();
   let B = BGS.get(key); if (B) return B;
   const px = new PixCtx(W, Hh), L = citySky(game, w, W, Hh), T = townLayout(view, stage), H = T.H;
   px.putImageData(L.img, 0, 0);
@@ -67,8 +71,11 @@ export function cityBackground(game, w, view) {
 
 // ---------- hit test ----------
 const islHW = n => Math.round(BASE_HW[clamp(n.stage | 0, 1, 4)] * BANDS[bandOf(n.y)].k);
-// The node under world point p: the town round its centre, an island over its top and body.
-export const nodeAt = (w, p) => {
+// The node under point p: the town round its centre, an island over its top and body.
+// p is in WORLD units (640x300), the sim's space. Pass the view to give a CANVAS point instead: it is mapped
+// back by view.k and the offset first (nodeAt(w, canvasPoint, view)).
+export const nodeAt = (w, p, view = null) => {
+  if (view) p = toWorld(view, p);
   let best = null, bd = 1e9;
   for (const n of w.S.nodes) {
     let d;
@@ -88,8 +95,8 @@ function edgeOf(I, dy, side) {
   if (row >= 0 && row < I.h) while (x >= 0 && x < Wd && !d[(row * Wd + x) * 4 + 3]) x -= side;
   return (E[k] = x - I.ox);
 }
-// Every pier this frame: Map 'ropeId:nodeId' -> {x, y, s} (the pier's root at the rim, s its side), in world units.
-function piersOf(w, isles, T, H, view) {
+// Every pier this frame: Map 'ropeId:nodeId' -> {x, y, s} (the pier's root at the rim, s its side), in canvas pixels.
+function piersOf(w, isles, T, H) {
   const out = new Map(), bySide = new Map();
   for (const r of w.S.ropes) for (const id of [r.a, r.b]) {
     const n = node(w, id), o = node(w, id === r.a ? r.b : r.a); if (!n || !o) continue;
@@ -101,7 +108,7 @@ function piersOf(w, isles, T, H, view) {
     list.sort((a, b) => a.o.y - b.o.y || a.r.id - b.r.id);
     list.forEach(({ r, n, s }, j) => {
       let x, y;
-      if (n.kind === 'planet') { x = Math.round(TOWN.x + s * (T.half + 2 + j * 11)); y = Math.round(H.surf(x + view.ox)) - view.oy + 1 }
+      if (n.kind === 'planet') { x = Math.round(H.cx + s * (T.half + 2 + j * 11)); y = Math.round(H.surf(x)) + 1 }
       else { const D = isles.get(n.id), dy = j * 7; x = Math.round(D.x) + edgeOf(D.I, dy, s) - s; y = Math.round(D.y) + dy }
       out.set(r.id + ':' + n.id, { x, y, s, n });
     });
@@ -130,14 +137,14 @@ function chevron(c, B, way) {
 }
 
 // ---------- play-mode overlays ----------
-// The dotted MAXR circle round n, with a green pip over everything in reach (v1 reachRing).
-export function reachRing(c, w, n, t) {
-  const N = Math.round(MAXR * 1.4);
-  for (let i = 0; i < N; i++) { if ((i + Math.floor(t * 3)) % 3 === 0) continue; const a = i / N * TAU; P(c, '#6e738d', n.x + Math.cos(a) * MAXR, n.y + Math.sin(a) * MAXR) }
-  for (const o of w.S.nodes) if (o !== n && dist(o, n) <= MAXR) P(c, '#a6da95', o.x - 1, o.y - (o.kind === 'planet' ? 14 : 22), 3, 3);
+// The dotted MAXR circle round n, with a green pip over everything in reach (v1 reachRing), on the canvas.
+export function reachRing(c, w, n, t, view) {
+  const k = view.k || 1, R = MAXR * k, [cx, cy] = toCanvas(view, n.x, n.y), N = Math.round(R * 1.4);
+  for (let i = 0; i < N; i++) { if ((i + Math.floor(t * 3)) % 3 === 0) continue; const a = i / N * TAU; P(c, '#6e738d', cx + Math.cos(a) * R, cy + Math.sin(a) * R) }
+  for (const o of w.S.nodes) if (o !== n && dist(o, n) <= MAXR) { const [x, y] = toCanvas(view, o.x, o.y); P(c, '#a6da95', x - 1, y - (o.kind === 'planet' ? 14 : 24), 3, 3) }
 }
 function dottedRing(c, x, y, rx, ry, t, col = '#c6a0f6') { const N = Math.max(24, Math.round((rx + ry) * 2)); for (let i = 0; i < N; i++) { if ((i + Math.floor(t * 4)) % 4 === 0) continue; const a = i / N * TAU; P(c, col, x + Math.cos(a) * rx, y + Math.sin(a) * ry) } }
-function overlays(c, game, w, isles, bridges, t, input) {
+function overlays(c, game, w, isles, bridges, t, input, view, H) {
   const Sx = w.S, { drag = null, pointer = null, tool = 'move' } = input;
   // open spots glow (spot 4 only while a gift waits in the tray)
   for (const D of isles.values()) {
@@ -152,37 +159,43 @@ function overlays(c, game, w, isles, bridges, t, input) {
   if (Sx.sel && Sx.sel.t === 'node') {
     const n = node(w, Sx.sel.id), D = n && isles.get(n.id);
     if (D) dottedRing(c, D.x, D.y + D.I.depth / 2 - 4, D.I.hw + 6, D.I.depth / 2 + 10, t);
-    else if (n) dottedRing(c, n.x, n.y - 10, 30, 10, t);
+    else if (n) dottedRing(c, H.cx, H.top - 6, 34, 9, t);
   } else if (Sx.sel) { const B = bridges.get(Sx.sel.id); if (B) for (let i = 0; i <= 12; i++) { const [x, y] = along(B.pts, i / 12); P(c, '#c6a0f6', x, y + 3) } }
   // the reach ring: round the island under the pointer, or the source of a bridge being tied
   const src = drag && drag.kind === 'rope' ? node(w, drag.id) : pointer && nodeAt(w, pointer);
-  if (src) reachRing(c, w, src, t);
+  if (src) reachRing(c, w, src, t, view);
   // drag previews
   if (drag && drag.kind === 'move' && drag.moved) {
     const n = node(w, drag.id), D = n && isles.get(n.id);
-    if (D) { c.globalAlpha = .25; c.blit ? c.blit(D.I.px, Math.round(drag.ox) - D.I.ox, Math.round(drag.oy) - D.I.oy) : drawIsland(c, D.I, drag.ox, drag.oy, t); c.globalAlpha = 1; const L = Math.hypot(n.x - drag.ox, n.y - drag.oy), m = Math.ceil(L); for (let i = 0; i <= m; i += 2) P(c, '#eed49f', drag.ox + (n.x - drag.ox) * i / m, drag.oy - 2 + (n.y - drag.oy) * i / m) }
+    if (D) {
+      const [gx, gy] = toCanvas(view, drag.ox, drag.oy).map(Math.round), [nx, ny] = toCanvas(view, n.x, n.y);
+      c.globalAlpha = .25; c.blit ? c.blit(D.I.px, gx - D.I.ox, gy - D.I.oy) : drawIsland(c, D.I, gx, gy, t); c.globalAlpha = 1;
+      const m = Math.ceil(Math.hypot(nx - gx, ny - gy)); for (let i = 0; i <= m; i += 2) P(c, '#eed49f', gx + (nx - gx) * i / m, gy - 2 + (ny - gy) * i / m);
+    }
   }
   if (drag && drag.kind === 'rope' && pointer) {
     const A = node(w, drag.id), Bn = nodeAt(w, pointer), tp = Bn && Bn !== A ? Bn : pointer, d = Math.hypot(tp.x - A.x, tp.y - A.y);
     const ok = Bn && Bn !== A ? canTie(w, A, Bn).ok : d <= MAXR, col = ok ? '#a6da95' : '#ed8796', n = Math.max(1, Math.ceil(d));
-    for (let i = 0; i <= n; i++) { if (!ok && i % 3) continue; P(c, col, A.x + (tp.x - A.x) * i / n, A.y - 2 + (tp.y - A.y) * i / n) }
+    const [ax, ay] = toCanvas(view, A.x, A.y), [bx, by] = toCanvas(view, tp.x, tp.y), m = Math.max(1, Math.ceil(n * (view.k || 1)));
+    for (let i = 0; i <= m; i++) { if (!ok && i % 3) continue; P(c, col, ax + (bx - ax) * i / m, ay - 2 + (by - ay) * i / m) }
   }
 }
 
 // ---------- the frame ----------
-// view = {w, h, ox, oy}: the canvas size and where the 640x300 world's top-left sits on it (ox, oy may be < 0).
-// input = {drag, pointer, tool} in play mode, null in wallpaper mode.
+// view = {w, h, k, ox, oy}: the canvas size and the world-to-canvas map (core/pixel.js worldView; k defaults to 1,
+// ox, oy may be < 0). input = {drag, pointer, tool} in play mode, null in wallpaper mode; its pointer and the
+// drag's ox/oy are in WORLD units, like nodeAt.
 export function drawCity(c, game, w, t, view, input = null) {
   const bg = cityBackground(game, w, view), T = bg.town, H = T.H;
   c.putImageData(bg.px.img, 0, 0);
   twinkle(c, bg.tw, t);
   for (const l of T.lamps) PROPS.lamp.a(c, l.x, l.y, S, {}, t);
-  c.translate(view.ox, view.oy);
-  try {
+  const k = view.k || 1;
+  {
     // islands: band, sprite and where its top centre is this frame
     const isles = new Map();
-    for (const n of isl(w)) { const band = bandOf(n.y); isles.set(n.id, { n, band, bi: BAND_ORDER.indexOf(band), I: getSprite(w, n, band), x: n.x, y: n.y + isleBob(n, t) }) }
-    const piers = piersOf(w, isles, T, H, view), bridges = new Map(), hz = id => { const D = isles.get(id); return D ? BANDS[D.band].haze : 0 }, bi = id => { const D = isles.get(id); return D ? D.bi : 2 };
+    for (const n of isl(w)) { const band = bandOf(n.y); isles.set(n.id, { n, band, bi: BAND_ORDER.indexOf(band), I: getSprite(w, n, band, k), x: Math.round(view.ox + n.x * k), y: Math.round(view.oy + n.y * k) + isleBob(n, t) }) }
+    const piers = piersOf(w, isles, T, H), bridges = new Map(), hz = id => { const D = isles.get(id); return D ? BANDS[D.band].haze : 0 }, bi = id => { const D = isles.get(id); return D ? D.bi : 2 };
     for (const r of w.S.ropes) {
       const pa = piers.get(r.id + ':' + r.a), pb = piers.get(r.id + ':' + r.b); if (!pa || !pb) continue;
       const [x1, y1] = endOf(pa), [x2, y2] = endOf(pb), L = Math.hypot(x2 - x1, y2 - y1);
@@ -198,7 +211,7 @@ export function drawCity(c, game, w, t, view, input = null) {
       }
       for (const B of bridges.values()) if (B.band === b) walker(c, B.r, B, t);
     }
-    if (input) overlays(c, game, w, isles, bridges, t, input);
-  } finally { c.translate(-view.ox, -view.oy) }
+    if (input) overlays(c, game, w, isles, bridges, t, input, view, H);
+  }
   drawEvent(c, game, view, t, w);
 }

@@ -6,7 +6,7 @@
 // game: {old:true}.
 import { advance } from './sim/game.js';
 import { deserialize, isV1 } from './sim/save.js';
-import { worldOffset } from './core/pixel.js';
+import { worldView } from './core/pixel.js';
 import { drawCity } from './draw/city.js';
 
 // Returns {game}, {old:true} for a v1 save, or null. Never throws.
@@ -16,7 +16,7 @@ export function trialLoad(obj, makeCtx) {
     const game = deserialize(obj); if (!game) return null;
     const copy = deserialize(obj);
     advance(copy, .1, 'wallpaper');
-    if (makeCtx) for (const w of copy.worlds) if (w.started) { const c = makeCtx(); drawCity(c, copy, w, 0, { w: c.width, h: c.height, ...worldOffset(c.width, c.height) }, null) }
+    if (makeCtx) for (const w of copy.worlds) if (w.started) { const c = makeCtx(); drawCity(c, copy, w, 0, { w: c.width, h: c.height, ...worldView(c.width, c.height) }, null) }
     return { game };
   } catch (e) {
     return null;

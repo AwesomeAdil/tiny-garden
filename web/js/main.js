@@ -10,7 +10,7 @@ import { startClock, clockStep, clockSavedAt } from './sim/clock.js';
 import { node } from './sim/world.js';
 import { sysPlanets } from './sim/system.js';
 import { W, H } from './sim/content.js';
-import { viewScale, worldOffset } from './core/pixel.js';
+import { viewScale, worldView } from './core/pixel.js';
 import { VIEWS } from './ui/esc.js';
 import { bg } from './draw/scene.js';
 import { drawCity } from './draw/city.js';
@@ -105,7 +105,7 @@ function drawMain(force = false) {
     if (v === 'galaxy') { if (!play) galInvalidate(c); drawGalaxy(c, t, play ? ui.galSel : null, play ? t : Math.floor(t * GAL_WALL_STEP) / GAL_WALL_STEP * GAL_WALL_SPIN, art.w, art.h) }
     else if (v === 'system') drawSystem(c, game, t, play ? ui.sysSel : null, art.w, art.h);
     else if (v === 'close') { const n = closeSubject(w), rt = play ? Math.floor(t * 2) / 2 : Math.floor(t / DAWN_STEP) * DAWN_STEP; if (n) islandView(c, w, n, t, art.w, art.h, rt); else planetView(c, game, w, t, art.w, art.h) }
-    else drawCity(c, game, w, t, { w: art.w, h: art.h, ...worldOffset(art.w, art.h) }, play ? { drag: app.drag, pointer: app.pointer, tool: app.tool } : null);
+    else drawCity(c, game, w, t, { w: art.w, h: art.h, ...worldView(art.w, art.h) }, play ? { drag: app.drag, pointer: app.pointer, tool: app.tool } : null);
     art.view = v; present(force);
   }
   const p = performance.now(); if (play || p - lastSky >= SKY_MS - 4) { lastSky = p; drawSky(t) }

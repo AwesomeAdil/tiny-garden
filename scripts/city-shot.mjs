@@ -9,7 +9,7 @@ globalThis.ImageData ??= class { constructor(w, h) { this.width = w; this.height
 const { newGame } = await import('../web/js/sim/game.js');
 const { skip } = await import('../web/js/sim/dev.js');
 const { PixCtx } = await import('../web/js/core/pixctx.js');
-const { worldOffset } = await import('../web/js/core/pixel.js');
+const { worldView } = await import('../web/js/core/pixel.js');
 const { drawCity } = await import('../web/js/draw/city.js');
 const { EVENTS } = await import('../web/js/sim/events.js');
 const { autoPick } = await import('../web/js/sim/dev.js');
@@ -35,7 +35,7 @@ if (flag('stage4')) { isl(w).forEach(n => { n.stage = 4 }); autoPick(w) }
 if (ev) { const T = game.worlds[0].S.time, dur = EVENTS[ev].dur; game.ev.active = { kind: ev, t0: T - dur * +(flag('at') || .5), dur, world: 0, variant: 1 }; game.ev.caught = false } else game.ev.active = null;
 for (const [W, H] of sizes) {
   const c = new PixCtx(W, H);
-  drawCity(c, game, w, t, { w: W, h: H, ...worldOffset(W, H) }, flag('play') ? { drag: null, pointer: null, tool: 'move' } : null);
+  drawCity(c, game, w, t, { w: W, h: H, ...worldView(W, H) }, flag('play') ? { drag: null, pointer: null, tool: 'move' } : null);
   const [cx, cy, cw, ch] = flag('crop') ? flag('crop').split(',').map(Number) : [0, 0, W, H];
   const OW = cw * zoom, OH = ch * zoom, img = new Uint8ClampedArray(OW * OH * 4), s32 = new Uint32Array(c.d.buffer), d32 = new Uint32Array(img.buffer);
   for (let y = 0; y < OH; y++) for (let x = 0; x < OW; x++) d32[y * OW + x] = s32[(cy + ((y / zoom) | 0)) * W + cx + ((x / zoom) | 0)];
