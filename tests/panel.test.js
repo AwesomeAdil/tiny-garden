@@ -237,3 +237,11 @@ test('town stage 4 names the next goal: the long cable, and how many islands are
   assert.equal(L.def.next || null, null);
   assert.doesNotMatch(text(panelHTML(app)), /long cable/);
 });
+
+// main.js can't be imported in node: check in its source that going to wallpaper closes an open rename field.
+test('switching to wallpaper clears app.renaming', async () => {
+  const { readFileSync } = await import('node:fs');
+  const js = readFileSync(new URL('../web/js/main.js', import.meta.url), 'utf8'), i = js.indexOf('function setMode(');
+  const line = js.slice(i, js.indexOf('\n}', i)).split('\n').find(l => l.includes("if (m !== 'play')"));
+  assert.match(line, /app\.renaming = null/);
+});

@@ -6,6 +6,7 @@
 // and, in play mode, <out>-view.png (the 200x120 side close-up), via index.html's dump=1 mode.
 // view = planet (or city) | system | galaxy | close; names=0 hides the galaxy/system names.
 // Prints any page errors and exits 1 if there were some.
+// Chrome: Playwright's cached Chrome for Testing by default; set CHROME=/path/to/chrome-binary to use another.
 import { spawn } from 'node:child_process';
 import { writeFile, mkdir } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';

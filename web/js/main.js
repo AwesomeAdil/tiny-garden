@@ -229,7 +229,7 @@ function setMode(m) {
   m = m === 'play' ? 'play' : 'wallpaper';
   app.mode = m; document.body.classList.toggle('wallpaper', m !== 'play');
   if (!app.game) return;
-  if (m !== 'play') { setSpeed(app, 1); app.drag = null; app.pointer = null; app.armedGift = null; closeCard(app); askNewMap(app, false) }
+  if (m !== 'play') { setSpeed(app, 1); app.drag = null; app.pointer = null; app.armedGift = null; app.renaming = null; closeCard(app); askNewMap(app, false) }
   unschedule(); layout(); renderAll(); layout(); renderAll(); save(); schedule();
 }
 
