@@ -60,10 +60,10 @@ export function confirmNewMap(app) { if (!app.askArmed) return; askNewMap(app, f
 
 export function onEsc(app) {
   if (app.asking) return askNewMap(app, false);
-  // An open card or an armed gift is the step after a drag (esc.js still calls it the shop step).
-  const S = app.w.S, a = escAction({ drag: app.drag, shop: !!app.card || app.armedGift != null, sel: app.game.ui.view === 'planet' ? S.sel : null });
+  // An open card or an armed gift is the step after a drag.
+  const S = app.w.S, a = escAction({ drag: app.drag, card: !!app.card || app.armedGift != null, sel: app.game.ui.view === 'planet' ? S.sel : null });
   if (a === 'cancel-drag') { app.drag = null }
-  else if (a === 'close-shop') { closeCard(app); app.armedGift = null; renderTray(app) }
+  else if (a === 'close-card') { closeCard(app); app.armedGift = null; renderTray(app) }
   else if (a === 'clear-selection') { S.sel = { t: 'node', id: 'planet' }; app.panelKey = ''; renderPanel(app) }
   else app.exit();
 }
