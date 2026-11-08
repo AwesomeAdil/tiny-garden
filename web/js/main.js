@@ -261,8 +261,9 @@ window.garden = {
   },
   setMode,
   // Pausing (screens asleep, session switched away, window hidden) also saves, so a sleep that never wakes loses nothing.
-  pause() { paused = true; unschedule(); save() },
-  resume() { if (!paused) return; paused = false; schedule() },
+  // body.paused stops the star layers' CSS animations too (style.css), so nothing runs while paused.
+  pause() { paused = true; document.body.classList.add('paused'); unschedule(); save() },
+  resume() { document.body.classList.remove('paused'); if (!paused) return; paused = false; schedule() },
   saveNow: () => app.game ? snapshot() : null,
 };
 

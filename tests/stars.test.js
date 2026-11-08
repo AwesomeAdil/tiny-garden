@@ -76,3 +76,13 @@ test('the page has the stars container between the map and the names, and a CSS 
   assert.match(css, /#stars canvas \{[^}]*animation-name:twinkle/);
   assert.match(css, /body:not\(\.wallpaper\) #stars \{ display:none; \}/);
 });
+
+// main.js can't be imported in node, so this checks the wiring in its source: pause() sets body.paused, resume()
+// clears it, and the CSS stops the star layers' animations under it (nothing animates while the wallpaper sleeps).
+test('pausing the garden pauses the star layers', () => {
+  const css = readFileSync(new URL('../web/style.css', import.meta.url), 'utf8'), js = readFileSync(new URL('../web/js/main.js', import.meta.url), 'utf8');
+  assert.match(css, /body\.paused #stars canvas \{ animation-play-state:paused; \}/);
+  const body = name => { const i = js.indexOf(`  ${name}() {`); assert.ok(i > 0, name); return js.slice(i, js.indexOf('\n', i)) };
+  assert.match(body('pause'), /classList\.add\('paused'\)/);
+  assert.match(body('resume'), /classList\.remove\('paused'\)/);
+});
