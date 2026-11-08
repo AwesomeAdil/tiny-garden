@@ -2,6 +2,7 @@ import AppKit
 
 // tiny-garden            run the app (wallpaper; --play starts in play)
 // tiny-garden toggle     flip wallpaper <-> play (launches into play if not running)
+// tiny-garden dev        play mode with developer mode on (a sandbox in save.dev.json; launches if not running)
 // tiny-garden quit       save and quit
 // tiny-garden status     print the running window's mode, level and behaviour
 // tiny-garden selftest   exits 0 or 1
@@ -17,7 +18,7 @@ let play = args.contains("--play")
 // One garden at a time: a second launch hands over and leaves.
 if !Control.others().isEmpty {
   log("already running")
-  if play { Control.post(Control.toggleNote) }
+  if args.contains("--dev") { Control.post(Control.devNote) } else if play { Control.post(Control.toggleNote) }
   exit(0)
 }
 
@@ -29,7 +30,8 @@ let window = GardenWindow(screen: screen)
 let host = WebHost(root: WebHost.webRoot())
 host.webView.frame = window.contentLayoutRect
 window.contentView = host.webView
-let life = Lifecycle(window: window, host: host, store: SaveStore(dir: SaveStore.defaultDir), startMode: play ? .play : .wallpaper)
+let devStart = args.contains("--dev")
+let life = Lifecycle(window: window, host: host, store: SaveStore(dir: SaveStore.defaultDir), startMode: play || devStart ? .play : .wallpaper, dev: devStart)
 app.delegate = life
 life.start()
 window.apply(.wallpaper, screen: screen)

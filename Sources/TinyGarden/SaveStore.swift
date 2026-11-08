@@ -2,7 +2,9 @@ import Foundation
 
 /// The save file and its side files, all in one directory: save.json (live), save.prev.json (the map before
 /// "New map"), save.v1.json (a v1 save set aside; a later one gets save.v1-YYYYMMDD-HHMMSS.json), and
-/// save.bad-YYYYMMDD-HHMMSS.json (each save that could not be read, kept, never overwritten).
+/// save.bad-YYYYMMDD-HHMMSS.json (each save that could not be read, kept, never overwritten), and save.dev.json
+/// (developer mode's sandbox: only ever loaded and written with `dev: true`; nothing else touches it, and nothing
+/// with `dev: true` touches save.json).
 struct SaveStore {
   let dir: URL
 
@@ -14,11 +16,16 @@ struct SaveStore {
   var file: URL { dir.appendingPathComponent("save.json") }
   var prevFile: URL { dir.appendingPathComponent("save.prev.json") }
   var v1File: URL { dir.appendingPathComponent("save.v1.json") }
+  var devFile: URL { dir.appendingPathComponent("save.dev.json") }
+
+  /// The file a load or write goes to: the sandbox in developer mode, the real save otherwise.
+  func target(dev: Bool) -> URL { dev ? devFile : file }
 
   /// What load() found: no save yet, a save's bytes, or a save.json that exists but can't be read.
   enum Loaded: Equatable { case none, data(Data), unreadable }
 
-  func load() -> Loaded {
+  func load(dev: Bool = false) -> Loaded {
+    let file = target(dev: dev)
     guard FileManager.default.fileExists(atPath: file.path) else { return .none }
     do { return .data(try Data(contentsOf: file)) } catch {
       log("save: cannot read \(file.lastPathComponent): \(error.localizedDescription)")
@@ -28,7 +35,8 @@ struct SaveStore {
 
   /// Atomic: the old save stays whole until the new one is fully on disk.
   @discardableResult
-  func write(_ data: Data) -> Bool {
+  func write(_ data: Data, dev: Bool = false) -> Bool {
+    let file = target(dev: dev)
     do {
       try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
       try data.write(to: file, options: .atomic)

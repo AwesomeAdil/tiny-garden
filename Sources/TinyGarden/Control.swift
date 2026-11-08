@@ -1,12 +1,13 @@
 import AppKit
 
-/// The command line: `tiny-garden [toggle|quit|status|selftest]`, the notification names
+/// The command line: `tiny-garden [toggle|dev|quit|status|selftest]`, the notification names
 /// the running app listens for, logging, and the selftest.
 enum Control {
   static let bundleID = "local.tiny-garden"
   static let toggleNote = "local.tiny-garden.toggle"
   static let quitNote = "local.tiny-garden.quit"
   static let statusNote = "local.tiny-garden.status"
+  static let devNote = "local.tiny-garden.dev"
 
   static var stateDir: URL {
     FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".local/state/tiny-garden", isDirectory: true)
@@ -22,6 +23,12 @@ enum Control {
         return launch(["open", "-b", bundleID, "--args", "--play"])
       }
       post(toggleNote); return 0
+    case "dev":
+      if runningPIDs().isEmpty {
+        log("dev: not running, launching into play with developer mode")
+        return launch(["open", "-b", bundleID, "--args", "--play", "--dev"])
+      }
+      post(devNote); return 0
     case "quit":
       post(quitNote); return 0
     case "status":
@@ -29,7 +36,7 @@ enum Control {
     case "selftest":
       return selftest()
     case "help", "-h", "--help":
-      print("usage: tiny-garden [--play] | toggle | quit | status | selftest"); return 0
+      print("usage: tiny-garden [--play] | toggle | dev | quit | status | selftest"); return 0
     default:
       return nil
     }
@@ -116,6 +123,15 @@ enum Control {
     try? FileManager.default.createDirectory(at: store.file, withIntermediateDirectories: true)
     check(store.load() == .unreadable, "an unreadable save.json is .unreadable")
     check(store.quarantine() != nil && store.load() == .none && store.badFiles().count == 3, "an unreadable save.json is quarantined")
+    try? FileManager.default.removeItem(at: store.file)
+
+    // Developer mode: dev writes and loads only save.dev.json, and never touch save.json.
+    check(store.target(dev: true).lastPathComponent == "save.dev.json" && store.target(dev: false) == store.file, "dev targets save.dev.json")
+    check(store.load(dev: true) == .none, "no sandbox yet is .none")
+    check(store.write(a) && store.write(b, dev: true), "write the real save and a sandbox")
+    check(store.load() == .data(a) && store.load(dev: true) == .data(b), "a dev write leaves save.json alone")
+    check(store.write(a, dev: true) && store.load() == .data(a) && (try? Data(contentsOf: store.devFile)) == a, "a second dev write replaces only save.dev.json")
+    check(Lifecycle.isDev(["type": "save", "dev": true]) && !Lifecycle.isDev(["type": "save"]) && !Lifecycle.isDev(["type": "save", "dev": "yes"]), "only dev:true is a sandbox message")
 
     // Play frame: the main screen minus the top inset; wallpaper is the whole screen.
     let screen = NSRect(x: 0, y: 0, width: 1512, height: 982)
