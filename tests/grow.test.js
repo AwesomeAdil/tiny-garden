@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { makeWorld, node, isl, tie, untie, makes } from '../web/js/sim/world.js';
-import { DEF_OCEAN, DEF_LAVA } from '../web/js/sim/content.js';
+import { DEF_OCEAN, DEF_LAVA, STAGE_COST } from '../web/js/sim/content.js';
 import { GOODS } from '../web/js/core/palette.js';
 import { cost } from '../web/js/sim/flow.js';
 import { grow, spotKind, offers, choose, rename } from '../web/js/sim/grow.js';
@@ -63,7 +63,7 @@ test('role-changing pick adds a sent good and drops it from costs', () => {
   const w = bare(3), h = at(w, 'home', 200, 150), f = at(w, 'frost', 300, 150);
   tie(w, h, f);
   h.stage = 2; h.paid.light = 2;
-  assert.equal(cost(w, h).water, 60);
+  assert.equal(cost(w, h).water, STAGE_COST[2]);
   h.stage = 3;
   assert.ok(offers(w, h, 2).some(p => p.id === 'waterfall'), 'seed lacks waterfall; pick another seed');
   assert.equal(choose(w, h, 2, 'waterfall'), true);

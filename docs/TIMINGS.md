@@ -100,3 +100,9 @@ Other measures:
 | Date | Task | Size | Wall-clock | Source |
 |---|---|---|---|---|
 | 2026-11-07 | Task 7b: fitted views, Dusk system, names, close-up, smooth galaxy | 20 files, 3 new | ~2.5 h agent wall-clock (6 rounds of 2 min × 4-view CPU runs ≈ 45 min of it) | measured |
+
+## Tiny garden v2 pacing (Task 7)
+
+| Date | Task | Size | Wall-clock | Source |
+|---|---|---|---|---|
+| 2026-11-07 | v2 Task 7: pacing test + tuning (`tests/pacing.test.js`) | seeds 1/2/3, 1 s steps, autoNet + autoPick every 60 s | test ~13 s total (4-5 s per seed). Sim time: first stage-up 227 / 109 / 107 s; cable 223 293 / 204 592 / 197 506 s (RATE 1/25, STAGE_COST [0,4,300,1500], TOWN_COST [0,40,400,1200], CABLE_COST 6000) | measured |

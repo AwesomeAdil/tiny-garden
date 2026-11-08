@@ -2,8 +2,8 @@
 export const W = 640, H = 300;
 export const CARRY = 3, MAXR = 170, SPEED = 24, OUTBOX = 6, MOVEPX = 12;
 export const TOWN = { x: 320, y: 286, r: 22 };
-export const RATE = 1 / 60; // goods per second, per good an island makes
-export const STAGE_COST = [0, 4, 60, 300]; // per needed good, stage i -> i+1 (Task 7 tunes)
+export const RATE = 1 / 25; // goods per second, per good an island makes
+export const STAGE_COST = [0, 4, 300, 1500]; // per needed good, stage i -> i+1 (Task 7 tunes)
 
 // makes: the one good the type produces (stone | light | water). flavour is descriptive; rock is the 3-colour rock body.
 export const ISL_OCEAN={

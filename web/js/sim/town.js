@@ -2,8 +2,8 @@
 import { GOODS } from '../core/palette.js';
 import { isl } from './world.js';
 
-export const TOWN_COST = [0, 40, 200, 600]; // each good, town stage i -> i+1 (Task 7 tunes)
-export const CABLE_COST = 2000;             // each good (Task 7 tunes)
+export const TOWN_COST = [0, 40, 400, 1200]; // each good, town stage i -> i+1 (Task 7 tunes)
+export const CABLE_COST = 6000;             // each good (Task 7 tunes)
 
 const all = n => Object.fromEntries(GOODS.map(k => [k, n]));
 
