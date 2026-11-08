@@ -7,6 +7,7 @@ import { WORLD_DEFS } from '../web/js/sim/content.js';
 import { isl, node } from '../web/js/sim/world.js';
 import { placeGift } from '../web/js/sim/events.js';
 import { rename } from '../web/js/sim/grow.js';
+import { catchUp } from '../web/js/sim/game.js';
 import { allPairs } from '../web/js/sim/graph.js';
 
 const trip = o => JSON.parse(JSON.stringify(o));
@@ -147,4 +148,21 @@ test('HOP is derived after loading', () => {
 test('names default on for a save without the flag', () => {
   const o = trip(serialize(newGame(3), 1)); delete o.ui.names;
   assert.equal(deserialize(o).ui.names, true);
+});
+
+test('a bad active event is dropped and the game survives catch-up; bad ev numbers are refused', () => {
+  const o = trip(serialize(mk(), 1));
+  o.ev.active = { kind: 'nope', t0: 0, dur: 5, world: 0, variant: 0 };
+  const back = deserialize(o);
+  assert.ok(back);
+  assert.equal(back.ev.active, null);
+  back.savedAt = 0;
+  catchUp(back, 3600 * 1000);
+  for (const k of ['rs', 'nextAt', 'nextGift']) {
+    const b = trip(serialize(mk(), 1)); b.ev[k] = 'x';
+    assert.equal(deserialize(b), null, k);
+  }
+  const c = trip(serialize(mk(), 1)); c.ev.caught = 1; delete c.ev.active;
+  assert.equal(deserialize(c).ev.caught, true);
+  assert.equal(deserialize(c).ev.active, null);
 });

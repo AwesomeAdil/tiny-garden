@@ -2,6 +2,7 @@ import { WORLD_DEFS } from './content.js';
 import { freshWorld } from './game.js';
 import { allPairs } from './graph.js';
 import { GIFTS } from './picks.js';
+import { EVENTS } from './events.js';
 
 export const SAVE_VERSION = 2;
 
@@ -22,6 +23,15 @@ export function serialize(game, nowMs) {
     ev: game.ev,
     ui: game.ui,
   });
+}
+
+const num = x => typeof x === 'number' && Number.isFinite(x);
+
+// Event state: the numbers must be real, or the save is refused. A bad active event is just dropped.
+function cleanEv(ev) {
+  if (!num(ev.rs) || !num(ev.nextAt) || !num(ev.nextGift)) return null;
+  const a = ev.active, good = a && typeof a === 'object' && Object.hasOwn(EVENTS, a.kind) && num(a.t0) && num(a.dur);
+  return { ...ev, caught: !!ev.caught, active: good ? a : null };
 }
 
 const goodGift = g => !!g && typeof g === 'object' && Object.hasOwn(GIFTS, g.kind);
@@ -79,8 +89,9 @@ export function deserialize(obj, defs = WORLD_DEFS) {
     const cables = obj.cables.map(cb => ({ a: remap(cb.a), b: remap(cb.b) }));
     obj.ui.world = Math.max(0, remap(obj.ui.world));
     if (typeof obj.ui.names !== 'boolean') obj.ui.names = true;
-    const gifts = obj.gifts.filter(goodGift);
-    return { seed: obj.seed, worlds, cables, gifts, ev: obj.ev, ui: obj.ui, savedAt: typeof obj.savedAt === 'number' ? obj.savedAt : 0 };
+    const gifts = obj.gifts.filter(goodGift), ev = cleanEv(obj.ev);
+    if (!ev) return null;
+    return { seed: obj.seed, worlds, cables, gifts, ev, ui: obj.ui, savedAt: typeof obj.savedAt === 'number' ? obj.savedAt : 0 };
   } catch (e) {
     return null;
   }
