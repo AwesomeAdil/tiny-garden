@@ -36,5 +36,5 @@ app.delegate = life
 life.start()
 window.apply(.wallpaper, screen: screen)
 host.load()
-log("started (\(play ? "play" : "wallpaper"))")
+log("started (\(play || devStart ? "play" : "wallpaper")\(devStart ? ", developer mode" : ""))")
 app.run()

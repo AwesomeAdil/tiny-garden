@@ -76,40 +76,63 @@ final class Lifecycle: NSObject, NSApplicationDelegate {
   /// Whether a message comes from developer mode's sandbox (the page adds dev:true to every one).
   static func isDev(_ m: [String: Any]) -> Bool { m["dev"] as? Bool == true }
 
+  /// What a page message does to the save files. Anything from the sandbox (dev:true) touches save.dev.json at
+  /// most, never save.json: it is written there, or only logged.
+  enum Route: Equatable { case boot, writeReal, writeDev, quarantine, archive, keepV1, devIgnored, exit, dev, log, unknown }
+
+  static func route(_ type: String?, dev: Bool) -> Route {
+    switch (type, dev) {
+    case ("ready", _): return .boot
+    case ("save", true): return .writeDev
+    case ("save", false): return .writeReal
+    case ("bad-save", true), ("old-save", true), ("new-map", true): return .devIgnored
+    case ("bad-save", false): return .quarantine
+    case ("new-map", false): return .archive
+    case ("old-save", false): return .keepV1
+    case ("exit", _): return .exit
+    case ("dev", _): return .dev
+    case ("log", _): return .log
+    default: return .unknown
+    }
+  }
+
   /// A save message's object, written to save.dev.json if it says dev:true, else to save.json.
   @discardableResult
   private func persist(_ m: [String: Any]) -> Int? {
     guard let s = m["save"], JSONSerialization.isValidJSONObject(s), let d = try? JSONSerialization.data(withJSONObject: s) else {
       log("save: message without a save object"); return nil
     }
-    return store.write(d, dev: Self.isDev(m)) ? d.count : nil
+    let dev = Self.route("save", dev: Self.isDev(m)) == .writeDev
+    return store.write(d, dev: dev) ? d.count : nil
   }
 
   private func handle(_ m: [String: Any]) {
-    let sandbox = Self.isDev(m)
-    switch m["type"] as? String {
-    case "ready": dev = false; boot()
-    case "save":
+    let type = m["type"] as? String
+    switch Self.route(type, dev: Self.isDev(m)) {
+    case .boot: dev = false; boot()
+    case .writeReal, .writeDev:
       persist(m)
       // Every 5 minutes or so (and on the first save), keep a frame to show if the page keeps crashing.
       if saves % 10 == 0 { host.keepFrame() }
       saves += 1
-    case "exit": enter(.wallpaper)
+    case .exit: enter(.wallpaper)
     // The sandbox never archives, quarantines or sets aside anything: an unreadable save.dev.json just becomes a
     // fresh sandbox, overwritten by its next save.
-    case "bad-save" where sandbox: log("dev: save.dev.json unreadable, starting a fresh sandbox")
-    case "old-save" where sandbox: log("dev: save.dev.json is not a v2 save, starting a fresh sandbox")
-    case "new-map" where sandbox: log("dev: new sandbox")
-    case "bad-save": log("js says the save is unreadable"); store.quarantine()
-    case "new-map": store.archive()
-    case "old-save": log("js says the save is v1: setting it aside (save.v1.json, or a stamped copy if that exists)"); store.keepV1()
-    case "dev":
+    case .devIgnored: log("dev: \(type ?? "?") from the sandbox, ignored (save.json untouched)")
+    case .quarantine: log("js says the save is unreadable"); store.quarantine()
+    case .archive: store.archive()
+    case .keepV1: log("js says the save is v1: setting it aside (save.v1.json, or a stamped copy if that exists)"); store.keepV1()
+    case .dev:
       if m["on"] as? Bool == true {
         guard mode == .play else { log("dev: asked outside play mode, ignored"); return }
         dev = true; bootDev()
-      } else if dev { dev = false; log("dev: off, the real garden is back") }
-    case "log": log("web: \((m["msg"] as? String ?? "?").prefix(500))")
-    case let t: log("web: unknown message \(t ?? "nil")")
+      } else {
+        if dev { dev = false; log("dev: off, the real garden is back") }
+        // The page had no copy of the real game to go back to: boot save.json again (in the current mode).
+        if m["reload"] as? Bool == true { log("dev: off, rebooting the real save"); boot() }
+      }
+    case .log: log("web: \((m["msg"] as? String ?? "?").prefix(500))")
+    case .unknown: log("web: unknown message \(type ?? "nil")")
     }
   }
 

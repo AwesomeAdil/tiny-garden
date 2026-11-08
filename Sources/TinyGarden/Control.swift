@@ -132,6 +132,20 @@ enum Control {
     check(store.load() == .data(a) && store.load(dev: true) == .data(b), "a dev write leaves save.json alone")
     check(store.write(a, dev: true) && store.load() == .data(a) && (try? Data(contentsOf: store.devFile)) == a, "a second dev write replaces only save.dev.json")
     check(Lifecycle.isDev(["type": "save", "dev": true]) && !Lifecycle.isDev(["type": "save"]) && !Lifecycle.isDev(["type": "save", "dev": "yes"]), "only dev:true is a sandbox message")
+    // Every page message, with and without dev:true: nothing from the sandbox may write, archive, quarantine or
+    // set aside save.json.
+    let routes: [(String?, Bool, Lifecycle.Route)] = [
+      ("ready", false, .boot), ("ready", true, .boot),
+      ("save", false, .writeReal), ("save", true, .writeDev),
+      ("bad-save", false, .quarantine), ("bad-save", true, .devIgnored),
+      ("new-map", false, .archive), ("new-map", true, .devIgnored),
+      ("old-save", false, .keepV1), ("old-save", true, .devIgnored),
+      ("exit", false, .exit), ("exit", true, .exit), ("dev", false, .dev), ("dev", true, .dev),
+      ("log", false, .log), ("log", true, .log), ("what", false, .unknown), ("what", true, .unknown), (nil, true, .unknown),
+    ]
+    for (t, d, want) in routes { check(Lifecycle.route(t, dev: d) == want, "route \(t ?? "nil") dev=\(d) is \(want)") }
+    let touchesReal: Set<Lifecycle.Route> = [.writeReal, .quarantine, .archive, .keepV1]
+    check(routes.filter { $0.1 }.allSatisfy { !touchesReal.contains(Lifecycle.route($0.0, dev: true)) }, "no sandbox message touches save.json")
 
     // Play frame: the main screen minus the top inset; wallpaper is the whole screen.
     let screen = NSRect(x: 0, y: 0, width: 1512, height: 982)
