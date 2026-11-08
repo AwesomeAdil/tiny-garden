@@ -22,3 +22,16 @@ export function trialLoad(obj, makeCtx) {
     return null;
   }
 }
+
+// What every boot does to a game before it runs (main.js start): a known view and world, 1x, the defaults a
+// save may lack, and no sim events left over. Pure, so tests can boot exactly as the page does.
+import { VIEWS } from './ui/esc.js';
+export function prepare(game, nowMs) {
+  const ui = game.ui;
+  if (!VIEWS.includes(ui.view)) ui.view = 'planet';
+  if (!(ui.world >= 0 && ui.world < game.worlds.length && game.worlds[ui.world].started)) ui.world = 0;
+  ui.speed = 1; ui.pri = ui.pri || 'auto'; if (typeof ui.names !== 'boolean') ui.names = true;
+  if (!ui.firstSeen) ui.firstSeen = nowMs;
+  game.worlds.forEach(w => { w.events.length = 0 });
+  return game;
+}

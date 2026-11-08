@@ -47,13 +47,12 @@ body:not(.wallpaper) #catch.on { display:block; }
 /* ---------- map overlays ---------- */
 #tags { position:absolute; inset:0; pointer-events:none; }
 #names { position:absolute; left:0; top:0; pointer-events:none; }
-/* The wallpaper's twinkling stars (js/core/stars.js): layers over the map on its pixel grid, each stepping its
-   opacity through sin's twinkle (bright above .6, dim above -.2, off below), so the compositor animates them. */
+/* The wallpaper's twinkling stars (js/core/stars.js): layers over the map on its pixel grid, one per twinkle group,
+   their opacity stepped by main.js on the wallpaper's frames. will-change keeps each its own composited layer, so an
+   opacity step is a layer property, not a repaint. */
 #stars, #stars canvas { position:absolute; left:0; top:0; width:100%; height:100%; pointer-events:none; }
-#stars canvas { animation-name:twinkle; animation-timing-function:step-end; animation-iteration-count:infinite; will-change:opacity; }
+#stars canvas { will-change:opacity; }
 body:not(.wallpaper) #stars { display:none; }
-body.paused #stars canvas { animation-play-state:paused; }
-@keyframes twinkle { 0% { opacity:.5 } 10.25% { opacity:1 } 39.75% { opacity:.5 } 53.2% { opacity:0 } 96.8% { opacity:.5 } 100% { opacity:.5 } }
 .ntag { position:absolute; transform:translate(-50%,0); display:flex; flex-direction:column; align-items:center; gap:calc(1px * var(--s)); font:700 calc(10.5px * var(--s)) var(--mono); line-height:1.2; letter-spacing:calc(.6px * var(--s)); white-space:nowrap; text-shadow:0 1px 0 #14151f,0 0 4px #14151f; }
 .ntag img { width:calc(12px * var(--s)); height:calc(12px * var(--s)); image-rendering:pixelated; vertical-align:middle; }
 .ntag .lv { color:#c6a0f6; }
@@ -98,6 +97,16 @@ body.paused #stars canvas { animation-play-state:paused; }
 .act { cursor:pointer; border:2px solid #14151f; background:#9a72c9; color:#181926; font:800 11px var(--mono); letter-spacing:.8px; text-transform:uppercase; border-radius:0; padding:4px 10px; box-shadow:inset 2px 2px 0 #e0caf9, inset -2px -2px 0 #4f3876; } .act:active { box-shadow:inset 2px 2px 0 #4f3876, inset -2px -2px 0 #e0caf9; } .act.alt { background:#363a4f; color:var(--text); box-shadow:inset 2px 2px 0 #494d64, inset -2px -2px 0 #24273a; } .act:disabled { cursor:default; background:#2b2e42; color:#6e738d; box-shadow:inset 2px 2px 0 #363a4f, inset -2px -2px 0 #1e2030; }
 .act:focus { outline:none; }
 .win { margin-top:10px; padding:8px 10px; background:#2c3a33; color:var(--green); font-weight:700; border:2px solid #14151f; box-shadow:inset 2px 2px 0 #3c5446, inset -2px -2px 0 #1f2a24; }
+
+/* ---------- developer mode (play only): the DEV tag in the dock and the strip in the side panel ---------- */
+#devtag { align-self:center; font:800 11px var(--mono); letter-spacing:1.6px; color:#181926; background:#ed8796; padding:2px 7px; margin:0 2px; box-shadow:inset 2px 2px 0 #f5bdc6, inset -2px -2px 0 #a3505c; }
+#devtag[hidden], #devbar[hidden] { display:none; }
+body.wallpaper #devtag, body.wallpaper #devbar { display:none !important; }
+#devbar { zoom:var(--ui); flex:none; padding:7px 12px 9px; background:#221f30; border-bottom:2px solid var(--space); box-shadow:inset 0 2px 0 #4a2f3d; }
+#devbar h4 { font:800 10.5px var(--mono); letter-spacing:1.4px; color:var(--red); text-transform:uppercase; margin-bottom:3px; } #devbar h4 small { font:500 10px var(--mono); color:#6e738d; letter-spacing:0; text-transform:none; margin-left:8px; }
+#devbar .row { display:flex; flex-wrap:wrap; align-items:center; gap:3px; margin:3px 0; }
+#devbar .gl { width:46px; font:700 9px var(--mono); letter-spacing:1px; color:#6e738d; text-transform:uppercase; }
+#devbar .dk { min-width:0; padding:4px 7px 3px; }
 
 /* Dev: page errors (standalone ?dump=1). */
 #errs { position:fixed; left:8px; bottom:8px; z-index:9; color:var(--red); list-style:none; font:12px var(--mono); }

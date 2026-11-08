@@ -55,7 +55,18 @@ export function syncDock(app) {
 
 // New map asks once, in the world, never with a browser dialog. Each prompt makes at most one new map
 // (app.askArmed): a second confirm (Enter, then the focused button's click) would archive the new map over save.prev.json.
-export function askNewMap(app, on) { app.asking = on; app.askArmed = on; app.els.ask.hidden = !on; press(app.els.newbtn, on); if (on) app.els.ask.querySelector('[data-ask="yes"]').focus() }
+// In developer mode the same prompt makes a new sandbox (save.dev.json); the real garden is not touched.
+const ASK = {
+  map: ['Start a new map?', 'A fresh garden with the islands somewhere else. This one is kept as a backup.', 'New map'],
+  dev: ['Start a new sandbox?', 'A fresh dev garden in save.dev.json. Your real garden is not touched.', 'New sandbox'],
+};
+export function askNewMap(app, on) {
+  app.asking = on; app.askArmed = on; app.els.ask.hidden = !on; press(app.els.newbtn, on);
+  if (!on) return;
+  const q = s => app.els.ask.querySelector(s), [t, p, y] = ASK[app.dev && app.dev.on ? 'dev' : 'map'];
+  q('#askt').textContent = t; q('#askp').textContent = p; q('[data-ask="yes"]').textContent = y;
+  q('[data-ask="yes"]').focus();
+}
 export function confirmNewMap(app) { if (!app.askArmed) return; askNewMap(app, false); app.newMap() }
 
 export function onEsc(app) {

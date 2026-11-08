@@ -35,6 +35,7 @@
       <button class="px dk" type="button" data-speed="4" aria-pressed="false"><img data-ui="fast" alt="">4×</button></div>
     <div class="grp"><button class="px dk" type="button" id="newbtn" aria-pressed="false"><img data-ui="dice" alt="">New map</button></div>
     <span class="sp"></span>
+    <span id="devtag" class="px" hidden title="Developer mode: a sandbox in save.dev.json. Option+Shift+D leaves it.">DEV</span>
     <span class="brand">tiny <b>garden</b> · esc to leave</span>
   </div>
   <div id="main">
@@ -48,8 +49,8 @@
           <div id="card" class="px" hidden role="dialog" aria-label="Choose what grows here"></div>
           <span id="catch">catching up…</span>
           <div id="ask" class="px" hidden role="dialog" aria-label="Start a new map?">
-            <h5><img data-ui="dice" alt="">Start a new map?</h5>
-            <p>A fresh garden with the islands somewhere else. This one is kept as a backup.</p>
+            <h5><img data-ui="dice" alt=""><span id="askt">Start a new map?</span></h5>
+            <p id="askp">A fresh garden with the islands somewhere else. This one is kept as a backup.</p>
             <div class="acts"><button class="act" type="button" data-ask="yes">New map</button><button class="act alt" type="button" data-ask="no">Keep this one</button></div>
           </div>
         </div>
@@ -62,6 +63,14 @@
     <div id="side">
       <div class="view"><canvas id="view" width="200" height="120" aria-label="A close-up of the selected place."></canvas><span class="lbl" id="vlbl">tiny garden</span><span class="lbl day" id="vday">day 1</span></div>
       <div id="tray" hidden aria-label="Gifts waiting for a spot"></div>
+      <div id="devbar" hidden aria-label="Developer mode">
+        <h4>dev sandbox<small>save.dev.json</small></h4>
+        <div class="row"><span class="gl">time</span><button class="px dk" type="button" data-dev="speed" data-v="1" aria-pressed="true">×1</button><button class="px dk" type="button" data-dev="speed" data-v="60" aria-pressed="false">×60</button><button class="px dk" type="button" data-dev="speed" data-v="600" aria-pressed="false">×600</button></div>
+        <div class="row"><span class="gl">island</span><button class="px dk" type="button" data-dev="grow">Grow</button><button class="px dk" type="button" data-dev="fill">Fill</button></div>
+        <div class="row"><span class="gl">visit</span><button class="px dk" type="button" data-dev="whale">Whale</button><button class="px dk" type="button" data-dev="traveller">Traveller</button><button class="px dk" type="button" data-dev="aurora">Aurora</button><button class="px dk" type="button" data-dev="gift">Gift</button></div>
+        <div class="row"><span class="gl">town</span><button class="px dk" type="button" data-dev="town">Town</button><button class="px dk" type="button" data-dev="cable">Cable</button></div>
+        <div class="row"><span class="gl">game</span><button class="px dk" type="button" data-dev="jump">Jump</button><button class="px dk" type="button" data-dev="new">New sandbox</button></div>
+      </div>
       <div id="panel"></div>
     </div>
   </div>
