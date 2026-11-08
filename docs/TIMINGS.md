@@ -4,8 +4,8 @@
 
 ## Wallpaper CPU (Task 7, Step 6 item 6)
 
-The target is under about 5% of one core for the **whole** wallpaper: the app plus WebKit's WebContent and GPU
-helper processes. All numbers below are on the 3440×1440 @1x main display, with the garden visible (not paused),
+The budget is now about **9%** of one core for the **whole** wallpaper (decided by Adil on 2026-11-08; it was about
+5% until then, see "6 fps + CSS stars" below): the app plus WebKit's WebContent and GPU helper processes. All numbers below are on the 3440×1440 @1x main display, with the garden visible (not paused),
 taken by `top -l 2 -s 20` over the app pid and the three WebKit helpers it started. WindowServer is listed
 for information only: it idles at about 20% on this machine with the garden quit.
 
@@ -170,6 +170,10 @@ frames) the repaint box goes from 91% of the canvas to 3.3% in a fresh game (33 
   this was written.
 - Static stars at 6 fps cost 6.0. That floor is the walkers, waterfalls and events at 6 fps: their box is about
   31% of the canvas mid-game, and each frame has a fixed per-frame cost.
+
+**Decided (Adil, 2026-11-08):** the 6 fps wallpaper with JS-stepped star opacity at about **8.4%** of one core is
+accepted, and the wallpaper budget is now **about 9%** (was about 5%). Of the 8.4, the twinkling stars are about 2.4
+and the walkers, waterfalls and events at 6 fps are the 6.0 floor. Later work should stay within about 9%.
 
 | Date | Task | Size | Wall-clock | Source |
 |---|---|---|---|---|

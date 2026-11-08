@@ -28,6 +28,9 @@ parked — rapid play→wallpaper→play toggle may drop play once — Ruling T:
 - ~~Wallpaper CPU at 10 fps is about 12% (city) and 14% (galaxy), against the 5% budget.~~ **Decided 2026-11-08:**
   6 fps wallpaper plus twinkling stars on CSS-animated layers (paused with the garden). The on-device CPU run is
   still pending: it needs the desktop visible (docs/TIMINGS.md, "6 fps + CSS stars").
+- **Decided 2026-11-08 (Adil): the wallpaper budget is now about 9% of one core** (was about 5%). The 6 fps wallpaper
+  with star opacity stepped from JS measured about 8.4% (city): stars about 2.4, walkers, waterfalls and events the
+  6.0 floor. Accepted as is (docs/TIMINGS.md, "6 fps + CSS stars").
 
 ## Seen in the Task 14 shots
 - 1512×944 play, system view: CINDER (selected) has no name label.
