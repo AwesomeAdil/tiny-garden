@@ -106,3 +106,47 @@ Other measures:
 | Date | Task | Size | Wall-clock | Source |
 |---|---|---|---|---|
 | 2026-11-07 | v2 Task 7: pacing test + tuning (`tests/pacing.test.js`) | seeds 1/2/3, 1 s steps, autoNet + autoPick every 60 s | test ~13 s total (4-5 s per seed). Sim time: first stage-up 227 / 109 / 107 s; cable 223 293 / 204 592 / 197 506 s (RATE 1/25, STAGE_COST [0,4,300,1500], TOWN_COST [0,40,400,1200], CABLE_COST 6000) | measured |
+
+## Wallpaper CPU (v2 Task 14: 10 fps wallpaper)
+
+Adil's v2 requirement: walkers, waterfalls, events and twinkling at 10 fps or more in wallpaper mode, inside v1's
+budget of about 5% aggregate, by cheaper frames and never a lower frame rate. **Verdict: over budget.** The city
+at 10 fps costs about 12% of a core, against 4.4 at 3 fps. Stopped and reported, as the plan says.
+
+Method: 3440×1440 @1x, the app plus the WebKit helpers it started (new pids after a `launchctl kickstart`),
+`ps -o %cpu,time` every 5 s after a 30 s warm-up. "cpu" below is the mean of the cpu-time deltas over each 5 s
+interval (ps's own %cpu is a decaying average; it reads 1–2 points lower). Samples taken while the garden was in
+play mode or paused are dropped. Experiments swapped files inside the installed bundle and restarted the agent.
+WindowServer is not counted.
+
+| Date | Build | View | Frames | app | WebContent | GPU | **Total** | Run |
+|---|---|---|---|---|---|---|---|---|
+| 2026-11-08 | v1 (as installed) | city | 3 fps | 0.7 | 2.5 | 2.4 | **5.6** | 40 s (Adil opened play after that) |
+| 2026-11-08 | v2, whole frame | city | 3 fps | 0.5 | 1.8 | 2.1 | **4.4** | 2 min |
+| 2026-11-08 | v2, whole frame | city | 10 fps | 1.4 | 4.3 | 6.0 | **11.7** | 2 min |
+| 2026-11-08 | v2, changed rows (row band) | city | 10 fps | 1.4 | 3.4 | 5.0 | **9.8** | 31 intervals of 5 min (Adil played in between) |
+| 2026-11-08 | v2, ~100 tile rects per frame (32×16) | city | 10 fps | 0.7 | 24.1 | 6.1 | **30.9** | 2 min |
+| 2026-11-08 | v2, fillRect per changed run | city | 10 fps | 1.4 | 5.4 | 5.5 | **12.2** | 2 min |
+| 2026-11-08 | v2, changed box (committed) | city | 10 fps | 1.4 | 4.5 | 6.4 | **12.2** | 2 min |
+| 2026-11-08 | v2, changed box (committed) | galaxy | 10 fps | 1.3 | 6.6 | 6.1 | **13.9** | 2 min |
+| 2026-11-08 | probe: changed box, twinkling frozen | city | 10 fps | 1.2 | 4.3 | 3.3 | **8.8** | 2 min |
+| 2026-11-08 | probe: only a 16×16 put per frame | city | 10 fps | 1.1 | 4.0 | 1.1 | **6.3** | 2 min |
+| 2026-11-08 | **v2, changed box (committed), headline** | city | 10 fps | 1.4 | 4.5 | 6.3 | **12.1** (p90 12.6; ps %cpu mean 10.6, p90 12.6) | 5 min, 60 samples |
+
+What the probes say:
+- **WebKit repaints one box around everything drawn in a frame.** The GPU cost follows that box's area: about 1%
+  for a 16×16 put, about 6% for the whole canvas. A hundred small puts or a few hundred 1-pixel fillRects cost as
+  much GPU as one put of the box around them, and each putImageData call costs about 0.2 ms in WebContent.
+- **Twinkling stars are spread over the whole sky,** so some star changes in almost every row and column of every
+  frame: in Node, a city frame changes only 400–700 pixels, but their box covers 89% of the canvas. With twinkling
+  frozen the box is 2% (new game) to 28% (mid-game), and the total drops to 8.8.
+- **About 5% is per frame whatever changes** (the 16×16 probe: WebContent 4.0, app 1.1, GPU 1.1): drawing in JS
+  (0.4–0.5 ms per city frame in Node), comparing the frame (0.5 ms) and WebKit's per-frame commit. At 10 fps that
+  alone is the whole budget.
+- So no put strategy reaches 5% at 10 fps. What could: twinkling moved out of the canvas (for example CSS-animated
+  star elements that Core Animation runs without WebKit drawing), plus cutting the per-frame JS. That is a
+  design change, left for Adil's decision (docs/FOLLOWUPS.md).
+
+| Date | Task | Size | Wall-clock | Source |
+|---|---|---|---|---|
+| 2026-11-08 | v2 Task 14: 10 fps cadence, dirty-box present, CPU runs, shots, docs | 3 code files, 16 shots, 4 docs | ~1.5 h agent wall-clock (about 50 min of it CPU runs, several restarted when Adil was playing) | measured |

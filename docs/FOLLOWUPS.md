@@ -16,3 +16,75 @@ parked — rapid play→wallpaper→play toggle may drop play once — Ruling T:
 - Resources: the town square hoards surplus that clogs bridges (e.g. FROST water through EMBER starves Heat). Proposed: town square only takes what it can use; show bridge jams in the guide.
 - Goods lying loose on islands and planets: replace with storage (mockup round first).
 - Live checks still to do: Finder clicks on the wallpaper, Spaces, full-screen apps, plugging in a display, ⌘Tab out of play, OmniWM exclusion.
+
+# v2 follow-ups (2026-11-08)
+
+## Later, not now (from the v2 design)
+- A Dyson ring or sphere.
+- Drawing your own art: a folder of PNGs the game picks up.
+- Inviting events with goods (today they come at random).
+
+## Needs Adil's decision
+- Wallpaper CPU at 10 fps is about 12% (city) and 14% (galaxy), against the 5% budget; 3 fps is 4.4
+  (docs/TIMINGS.md). Options: twinkling as CSS-animated stars outside the canvas plus cheaper per-frame JS, a
+  lower wallpaper frame rate, or a bigger budget.
+
+## Seen in the Task 14 shots
+- 1512×944 play, system view: CINDER (selected) has no name label.
+- 1512×944 play, galaxy view: the GIANT'S RING and QUIET SUN labels nearly touch.
+- 1512×944 galaxy wallpaper: a faint horizontal seam where the map meets the sky canvas below it.
+
+## Deferred minor findings from the v2 task reviews
+
+### Growth and picks (sim/grow.js)
+- T3: the grow message uses the island type's name, not `n.name` (grow.js:20).
+- T3: offers can return fewer than 2 picks under narrow filters (grow.js:299); no test pins the 2–3 offer floor.
+- T3: a redundant `!n.sends` check (grow.js:296).
+- T3: no test that the hub is ignored by `spotKind`; no test of "satisfied" carrying across a real grow.
+- T3: the content test counts pier picks across all goods, looser than per spot.
+
+### Town and cable (sim/town.js)
+- T4: town.test.js:212 `deepEqual(bool)` checks water only; unexplained setup at town.test.js:204.
+- T4: the autoPick / skip redundancy pass is untested.
+- T4: a silent -1 next-world branch (town.js:25); stage overpay is discarded.
+- T10: the town has two sources of truth (`TOWN` and `w.hub`).
+
+### Events and gifts (sim/events.js, ui/card.js)
+- T5: the "while you were away" line is said even when a full tray dropped the gift.
+- T5: TRAVELLER_NAMES 12–13 are unreachable; `placeGift` on the planet node has no guard.
+- T5: no test that an `ev` JSON round-trip continues the event stream.
+- T12: gifts are keyed by index; the tray previews on the HOME rock.
+- T13: `eventLine` has no fallback.
+
+### Saving (sim/save.js, SaveStore.swift)
+- T6: unknown pick ids survive prune (save.js:41); `cleanEv` does not check `active.world` / variant.
+- T6: `keepV1` replaces an older save.v1.json; no Swift test of it; no test for caught + active; no cable shape check.
+
+### Drawing (draw/*.js, core/pixctx.js)
+- T8: an unused `drawMap` import and a bare `{}` block in drawMain; stale comments in main.js.
+- T8: `worldOffset` can go negative at s=1 (the city and input tolerate it).
+- T9: `islandSpec` is recomputed every frame (CPU; the frame still fits the budget, docs/TIMINGS.md).
+- T9: piers are in the sprite key but unused; dead consts in `fillRect` (pixctx.js:189).
+- T9: house window glow and smoke ignore flip / w; the centrepiece hides part of the spot-1 tree; verdant clump spacing.
+- T10: `edgeOf` runs off the body for stacked piers; per-frame allocations in `span` / `hazed`.
+- T10: the layout's last-resort throw needs a comment.
+- T11: the glint jumps between arcs at w = .5.
+- T13: one SCRATCH buffer per size.
+
+### Play UI (ui/*.js)
+- T12: a bridge tap both cycles it and selects it; the island hit box is a rectangle.
+- T12: leftover shop / rope naming in code, and the "pick Rope" guide line; unused CSS.
+- T12: a util.js <-> card/panel import cycle (safe today).
+- T13: renaming state survives a view change; the `rename=1` dev param has no guard.
+
+### Tests
+- T8: the scale tests don't pin the max(2) floor or the round boundary; the corner-label test checks only index.html.
+- T9: the LRU test can't catch FIFO; the falls test's first assertion is weak; the waterfall-pick path is untested.
+- T9: no direct test of transparent `fillRect` / `drawImage`.
+- T10: the boot test doesn't cover a save that makes drawCity throw.
+- T11: dead code and a vacuous assert in system.test.js:259/273; planetView zoom 1 untested.
+- T12: hub-miss tests use `notEqual`.
+
+### Docs
+- T7: TIMINGS.md's pacing rows use a separate table with mismatched columns.
+- T9: the SPOT_X comment.
