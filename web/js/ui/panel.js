@@ -7,9 +7,7 @@ import { GOODS, NAME } from '../core/palette.js';
 import { ico, uico } from '../core/icons.js';
 import { cost } from '../sim/flow.js';
 import { cableOpen } from '../sim/town.js';
-import { rename } from '../sim/grow.js';
-import { SPOTS } from '../sim/picks.js';
-import { spotOpen } from '../sim/grow.js';
+import { rename, openSpots } from '../sim/grow.js';
 import { setView, zoomTo } from './dock.js';
 import { nameOf, untieRope } from './util.js';
 import { say } from './guide.js';
@@ -22,7 +20,6 @@ const needRows = (w, n) => {
   const c = cost(w, n);
   return GOODS.filter(k => c[k] > 0).map(k => `<p class="need" title="${NAME[k]}">${ico(k)} ${Math.min(n.paid[k], c[k])} of ${c[k]}</p>`).join('');
 };
-const openSpots = n => SPOTS.filter(s => s.i < 4 && spotOpen(n, s.i) && !n.spots[s.i]).length;
 
 // Renaming: only while the field belongs to the island on show.
 export function commitRename(app, text) {
@@ -60,7 +57,7 @@ export function panelHTML(app) {
   }
   const col = w.def.isl[n.id].col, renaming = app.renaming === n.id;
   const title = renaming ? `<input id="rn" class="px" type="text" maxlength="10" spellcheck="false" autocomplete="off" value="${esc(nameOf(w, n))}" aria-label="Island name">` : `<button class="nm" type="button" data-act="rename" title="Click to rename">${esc(nameOf(w, n))}</button>`;
-  const used = S.ropes.filter(r => r.a === n.id || r.b === n.id).length, sp = openSpots(n);
+  const used = S.ropes.filter(r => r.a === n.id || r.b === n.id).length, sp = openSpots(n).length;
   return `<h3 style="color:${col}">${title}<small>stage ${n.stage} of 4</small></h3>` + needRows(w, n)
     + `<p class="makes">makes ${[...new Set(makes(w, n))].map(k => `<span title="${NAME[k]}">${ico(k)}</span>`).join(' ')}</p>`
     + `<p>piers ${used}/${piers(n)}</p>` + (sp ? `<p class="spots">${sp} ${sp === 1 ? 'spot' : 'spots'} to choose</p>` : '');

@@ -10,7 +10,7 @@ test('newGame has no bridges', () => {
   assert.equal(g.worlds.length, WORLD_DEFS.length);
   assert.deepEqual(g.worlds.map(w => w.started), [true, false]);
   g.worlds.forEach(w => assert.deepEqual(w.S.ropes, []));
-  assert.deepEqual(g.ui, { view: 'planet', world: 0, speed: 1, sysSel: null, galSel: null, galPan: { x: 0, y: 0 }, names: true });
+  assert.deepEqual(g.ui, { view: 'planet', world: 0, speed: 1, sysSel: null, galSel: null, galPan: { x: 0, y: 0 }, names: true, lessons: {} });
   assert.deepEqual(g.cables, []);
   assert.deepEqual(g.gifts, []);
   assert.equal(g.savedAt, 0);

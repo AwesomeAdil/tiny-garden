@@ -7,7 +7,10 @@ import { CABLE_COST } from '../web/js/sim/town.js';
 
 globalThis.document ??= { createElement: () => ({ getContext: () => ({ fillRect() {}, set fillStyle(v) {} }), toDataURL: () => 'data:,' }) };
 const { panelHTML, commitRename } = await import('../web/js/ui/panel.js');
-const { guideText, eventLine } = await import('../web/js/ui/guide.js');
+const { guideText, eventLine, drainEvents } = await import('../web/js/ui/guide.js');
+const { wirePanel } = await import('../web/js/ui/panel.js');
+const { onEsc } = await import('../web/js/ui/dock.js');
+const { serialize, deserialize } = await import('../web/js/sim/save.js');
 const { escAction } = await import('../web/js/ui/esc.js');
 
 const mkApp = () => {
@@ -64,8 +67,10 @@ test('bridge panel shows its two ends and its way', () => {
   const h = panelHTML(app);
   assert.match(text(h), /tap the bridge to change/);
   assert.match(h, /data-act="untie"/);
-  const both = h; r.way = 1; const one = panelHTML(app);
-  assert.notEqual(both, one);
+  const arrows = html => [...html.matchAll(/<img class="ar( l)?"/g)].map(m => m[1] ? 'L' : 'R').join('');
+  assert.equal(arrows(h), 'LR', 'both ways: a left and a right arrow');
+  r.way = 1; assert.equal(arrows(panelHTML(app)), 'R', 'a to b: points right');
+  r.way = -1; assert.equal(arrows(panelHTML(app)), 'L', 'b to a: points left');
 });
 
 test('town panel shows the cable only once it is open', () => {
@@ -91,7 +96,7 @@ test('guide teaches tying first, then names a stall', () => {
   assert.match(guideText(app), /grew! Click a glowing spot to choose what grows there\./);
   a.spots[1] = { pick: 'x' };
   assert.match(guideText(app), /Tap a bridge to make it one-way\./);
-  app.tapped = true;
+  app.game.ui.lessons.oneWay = true;
   b.stage = 1; // b is not tied to anything: whatever it needs and cannot reach is named
   const g = guideText(app);
   assert.match(g, /needs (water|light|stone), but nothing it can reach makes it\./);
@@ -101,4 +106,52 @@ test('event arrivals have a line each', () => {
   assert.equal(eventLine('whale'), 'A space whale is passing!');
   assert.match(eventLine('traveller'), /traveller/);
   assert.match(eventLine('aurora'), /aurora/i);
+  assert.doesNotMatch(eventLine('comet'), /undefined/);
+});
+
+// A fake panel element that keeps its listeners, to drive the rename field's key handling.
+const keyApp = () => {
+  const app = mkApp(), h = {}; app.els.panel = { innerHTML: '', addEventListener: (t, f) => { h[t] = f }, querySelector: () => null };
+  wirePanel(app);
+  const w = app.w, n = islands(w)[0]; w.S.sel = { t: 'node', id: n.id }; app.renaming = n.id; app.tool = 'move';
+  const key = (k, value = '') => { const e = { key: k, target: { id: 'rn', value }, stopped: false, stopPropagation() { this.stopped = true }, preventDefault() {} }; h.keydown(e); return e };
+  return { app, n, key };
+};
+
+test('rename keystroke isolation: shortcut keys never reach the game, Enter saves, Esc cancels', () => {
+  const { app, n, key } = keyApp();
+  for (const k of ['m', 'r', 'c', 'n', '1', '2', '3', '4', 'Tab']) assert.equal(key(k).stopped, true, k + ' stays in the field');
+  assert.equal(app.game.ui.view, 'planet'); assert.equal(app.tool, 'move'); assert.equal(app.renaming, n.id);
+  assert.equal(key('Escape').stopped, false, 'Esc is left for the Esc chain');
+  onEsc(app); assert.equal(app.renaming, null, 'Esc cancels'); assert.ok(!n.name);
+  app.renaming = n.id;
+  assert.equal(key('Enter', 'ivy 2').stopped, true);
+  assert.equal(n.name, 'IVY 2'); assert.equal(app.renaming, null);
+});
+
+test('drainEvents posts a visit exactly once across many frames', () => {
+  const app = mkApp(); let said = 0;
+  Object.defineProperty(app.els.hint, 'innerHTML', { set() { said++ } });
+  app.game.ev.active = { kind: 'whale', t0: 100, dur: 150, world: 0, variant: 0 };
+  for (let i = 0; i < 200; i++) drainEvents(app);
+  assert.equal(said, 1);
+  app.game.ev.active = null; drainEvents(app); app.game.ev.active = { kind: 'aurora', t0: 900, dur: 180, world: 0, variant: 1 }; drainEvents(app);
+  assert.equal(said, 2, 'the next visit speaks again');
+});
+
+test('lesson 4 completes on a stage-3 island and on a one-way bridge, and survives a save', () => {
+  const lesson = 'Tap a bridge to make it one-way.';
+  const base = () => { const app = mkApp(), w = app.w, [a] = islands(w); const r = tie(w, w.hub, a); a.paid.water = 1; return { app, w, a, r } };
+  const open = base(); assert.match(guideText(open.app), new RegExp(lesson));
+  const s3 = base(); s3.a.stage = 3; s3.a.spots[0] = s3.a.spots[1] = s3.a.spots[2] = { pick: 'x' };
+  assert.doesNotMatch(guideText(s3.app), new RegExp(lesson));
+  const ow = base(); ow.r.way = 1; assert.doesNotMatch(guideText(ow.app), new RegExp(lesson));
+  // done once stays done: undo the cause, round-trip a save, and it does not come back
+  ow.r.way = 0;
+  const back = deserialize(JSON.parse(JSON.stringify(serialize(ow.app.game, 1))));
+  const app2 = { ...mkApp(), game: back };
+  assert.doesNotMatch(guideText(app2), new RegExp(lesson));
+  // an older save with no lessons loads with a default
+  const old = JSON.parse(JSON.stringify(serialize(newGame(3), 1))); delete old.ui.lessons;
+  assert.deepEqual(deserialize(old).ui.lessons, {});
 });

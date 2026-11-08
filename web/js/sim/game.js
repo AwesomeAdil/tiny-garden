@@ -13,7 +13,7 @@ export function freshWorld(def, seed, started) {
 
 export function newGame(seed, defs = WORLD_DEFS, savedAt = 0) {
   const worlds = defs.map((def, i) => freshWorld(def, seed, i === 0));
-  return { seed, worlds, cables: [], gifts: [], ev: newEv(seed), ui: { view: 'planet', world: 0, speed: 1, sysSel: null, galSel: null, galPan: { x: 0, y: 0 }, names: true }, savedAt };
+  return { seed, worlds, cables: [], gifts: [], ev: newEv(seed), ui: { view: 'planet', world: 0, speed: 1, sysSel: null, galSel: null, galPan: { x: 0, y: 0 }, names: true, lessons: {} }, savedAt };
 }
 
 // Steps realSec (x speed in play mode) in 0.1 s sub-steps.

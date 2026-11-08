@@ -2,8 +2,7 @@
 import { GSYS } from '../draw/galaxy.js';
 import { stalls } from '../sim/flow.js';
 import { isl, node } from '../sim/world.js';
-import { SPOTS } from '../sim/picks.js';
-import { spotOpen } from '../sim/grow.js';
+import { openSpots } from '../sim/grow.js';
 import { NAME } from '../core/palette.js';
 import { nameOf } from './util.js';
 
@@ -25,9 +24,12 @@ function cityGuide(app, w) {
   const delivered = S.nodes.some(n => n.stage > 1 || Object.values(n.paid).some(v => v > 0));
   if (!S.ropes.length && !delivered) { const h = node(w, 'home'); return `Drag from <b>${h ? nameOf(w, h).toUpperCase() : 'the town'}</b> to an island to tie a bridge.` }
   if (!delivered) return 'Water, light and stone travel to islands that need them.';
-  const grown = I.find(n => SPOTS.some(s => s.i < 4 && spotOpen(n, s.i) && !n.spots[s.i]));
+  const grown = I.find(n => openSpots(n).length);
   if (grown) return `${nameOf(w, grown).toUpperCase()} grew! Click a glowing spot to choose what grows there.`;
-  if (S.ropes.length && !app.tapped && !S.ropes.some(r => r.way !== 0) && !I.some(n => n.stage >= 3)) return 'Tap a bridge to make it one-way.';
+  // Lesson 4 is done by a tap on a bridge, a one-way bridge, or an island at stage 3+; once done it stays done (saved).
+  const L = app.game.ui.lessons || (app.game.ui.lessons = {});
+  if (S.ropes.some(r => r.way !== 0) || I.some(n => n.stage >= 3)) L.oneWay = true;
+  if (S.ropes.length && !L.oneWay) return 'Tap a bridge to make it one-way.';
   const st = stalls(w)[0];
   if (st) return `${nameOf(w, node(w, st.id)).toUpperCase()} needs ${NAME[st.k].toLowerCase()}, but nothing it can reach makes it.`;
   return 'Tie bridges so every island gets what it needs. Tap a bridge to make it one-way.';
@@ -51,7 +53,7 @@ export function idleHint(app) {
 }
 
 // Sim events go to the hint line in play mode; in wallpaper mode nobody is reading, so they're dropped.
-export const eventLine = kind => ({ whale: 'A space whale is passing!', traveller: 'A traveller is passing by!', aurora: 'An aurora is lighting the sky!' }[kind]);
+export const eventLine = kind => (({ whale: 'A space whale is passing!', traveller: 'A traveller is passing by!', aurora: 'An aurora is lighting the sky!' })[kind] || 'Someone is passing by!');
 
 export function drainEvents(app) {
   // A visit starts when game.ev.active appears: one line per visit, however long it lasts.

@@ -27,6 +27,8 @@ export const pierSide = (w, n, ropeId) => {
 };
 
 export const spotOpen = (n, i) => n.stage >= SPOTS[i].opensAt;
+// Open spots (0-3; spot 4 is gift-only) where nothing has been chosen yet.
+export const openSpots = n => SPOTS.filter(s => s.i < 4 && spotOpen(n, s.i) && !n.spots[s.i]);
 
 export function spotKind(w, n, i) {
   const side = SPOTS[i].side;

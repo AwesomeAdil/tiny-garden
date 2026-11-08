@@ -77,7 +77,7 @@ export function constrain(w, n, p) {
   return { x, y, strain: strain || Math.hypot(p.x - x, p.y - y) > 3 };
 }
 
-const sel = (app, s) => { app.w.S.sel = s; if (s.t === 'rope') app.tapped = true; app.renaming = null; app.panelKey = ''; renderPanel(app) };
+const sel = (app, s) => { app.w.S.sel = s; app.renaming = null; app.panelKey = ''; renderPanel(app) };
 const tell = app => (m, warn) => say(app, m, warn);
 
 // A click on an open spot: place the armed gift there, or open the pick card for it.
@@ -109,7 +109,7 @@ export function wireInput(app) {
     if (app.tool === 'rope') { if (n) { app.drag = { kind: 'rope', id: n.id }; map.setPointerCapture(e.pointerId) } return }
     if (n) { app.drag = { kind: 'move', id: n.id, sx: p.x, sy: p.y, ox: n.x, oy: n.y, moved: false, strain: false }; map.setPointerCapture(e.pointerId); return }
     const r = ropeAt(w, cp, cv, t);
-    if (r) { tapRope(w, r, tell(app)); sel(app, { t: 'rope', id: r.id }) }
+    if (r) { tapRope(w, r, tell(app)); (app.game.ui.lessons ||= {}).oneWay = true; sel(app, { t: 'rope', id: r.id }) }
   });
 
   map.addEventListener('pointermove', e => {
