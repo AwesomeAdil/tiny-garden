@@ -23,6 +23,7 @@
 - **UI:** pixel art only, on v1's icon grid. No emoji, no rounded widgets, no text labels in the wallpaper's corners (no view title, no ⌥E hint).
 - **Island art:** "Storybook + warm light" (`STY.mixA`): a dark outline, bright flat colours, and a warm `#f5a97f` rim on the side facing the sun.
 - **CPU:** wallpaper mode stays within v1's budget, about 5% aggregate (app plus WebKit helpers) on 3440×1440. `docs/TIMINGS.md` has v1's numbers.
+- **Smooth wallpaper (Adil, page 47):** wallpaper animation must look smooth, not v1's 3 fps. Walkers, waterfalls, events and twinkling run at **10 fps or more** in wallpaper mode, still inside the CPU budget. Get there with cheaper frames: cached background layers, and putting only the changed rows on screen. Lowering the frame rate is not an option.
 - **Save:** `SAVE_VERSION = 2`. A v1 save is moved to `save.v1.json`, and a fresh game starts.
 - **Broken window:** between Task 1 and Task 12 the app itself does not run. Each task runs the test files it names. `npm test` must be fully green from Task 12 on. Every v1 test file a task makes obsolete is deleted or rewritten in that same task.
 - Commits end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
@@ -632,10 +633,12 @@ Use `scripts/shot.mjs` for city, system, galaxy and close-up, each in wallpaper 
 
 - [ ] **Step 2: CPU measurement**
 
-Build and install (`scripts/install`), then run the wallpaper on the 3440×1440 display for 5 minutes. Sample `ps -o %cpu` of TinyGarden plus its `com.apple.WebKit.*` helpers every 5 s. Expected: a mean of 5% or less. If it is over, apply in this order:
-1. Cache the sky and horizon into one background ImageData that repaints every 10 s.
-2. Lower the city's wallpaper frame rate from 3 fps to 2.
-3. Give the galaxy a coarser scale of its own, which the design allows.
+First set the wallpaper cadence in `main.js`: `WALL_MS = 100`, so 10 fps. Draw every frame onto a cached background ImageData (sky, stardust, horizon and island sprites, rebuilt only when one of them changes), then `putImageData` only the bounding rows that changed (`present()` tracks the dirty row range).
+
+Build and install (`scripts/install`), then run the wallpaper on the 3440×1440 display for 5 minutes. Sample `ps -o %cpu` of TinyGarden plus its `com.apple.WebKit.*` helpers every 5 s. Expected: a mean of 5% or less **at 10 fps**. If it is over, apply in this order:
+1. Dirty rectangles: put only the changed x-range of each changed row band.
+2. Give the galaxy a coarser scale of its own, which the design allows.
+3. If it is still over, stop and report the numbers to Adil. Never lower the frame rate without his OK.
 
 Re-measure after each, and log every measurement in `docs/TIMINGS.md`.
 
