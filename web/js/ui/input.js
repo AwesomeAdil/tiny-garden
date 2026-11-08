@@ -3,10 +3,8 @@
 // Coordinates: the sim is in 640x300 world units; hit tests run in canvas pixels against what draw/city.js draws.
 import { clamp, toWorld as worldOf } from '../core/pixel.js';
 import { W, MAXR, BAND_Y } from '../sim/content.js';
-import { node, isl, piers, canTie, tie, untie } from '../sim/world.js';
+import { node, isl, piers, canTie, tie } from '../sim/world.js';
 import { cycleWay } from '../sim/graph.js';
-import { placeGift } from '../sim/events.js';
-import { GIFTS } from '../sim/picks.js';
 import { islandHW } from '../draw/kit.js';
 import { nodeAt, ropeSpans, spotXY, spotShown } from '../draw/city.js';
 import { sysAt } from '../draw/system.js';
@@ -14,15 +12,13 @@ import { galAt, galClampPan } from '../draw/galaxy.js';
 import { renderPanel } from './panel.js';
 import { say } from './guide.js';
 import { setView, zoomTo } from './dock.js';
-import { openCard, closeCard, renderTray } from './card.js';
+import { openCard, closeCard } from './card.js';
+import { nameOf, placeGiftAt, untieRope } from './util.js';
 
 // A pointer event in canvas pixels (each view has its own canvas size).
 export const toMap = (cv, e) => { const r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left) * cv.width / r.width, y: (e.clientY - r.top) * cv.height / r.height } };
 // A pointer event in world units, through the city's view (core/pixel.js worldView).
 export const toWorld = (cv, e, view) => worldOf(view, toMap(cv, e));
-
-// What a node is called on the hint line: its own name if renamed, else its type's; the town is "The town".
-export const nameOf = (w, n) => n.kind === 'planet' ? 'The town' : n.name || w.def.isl[n.id].name;
 
 // (The town's 4 piers and a stage-4 island's are final, so their line leaves off "It gets another when it grows.")
 // Tie a and b if canTie allows, else tell (msg, warn) why not. Returns canTie's {ok, why}, plus the rope when tied.
@@ -83,18 +79,11 @@ export function constrain(w, n, p) {
 
 const sel = (app, s) => { app.w.S.sel = s; app.panelKey = ''; renderPanel(app) };
 const tell = app => (m, warn) => say(app, m, warn);
-export const cutRope = (app, r) => { const S = app.w.S; untie(app.w, r.id); if (S.sel.t === 'rope' && S.sel.id === r.id) S.sel = { t: 'node', id: 'planet' }; app.panelKey = ''; renderPanel(app); say(app, 'Bridge untied.') };
 
 // A click on an open spot: place the armed gift there, or open the pick card for it.
 function onSpot(app, n, i) {
-  const game = app.game, w = app.w;
-  if (app.armedGift != null) {
-    const g = game.gifts[app.armedGift];
-    if (g && placeGift(game, w, n, app.armedGift, i)) say(app, `${GIFTS[g.kind] ? GIFTS[g.kind].name : 'The gift'} placed on ${nameOf(w, n)}.`);
-    app.armedGift = null; renderTray(app); app.panelKey = ''; renderPanel(app);
-    return;
-  }
-  openCard(app, w, n, i);
+  if (app.armedGift != null) placeGiftAt(app, app.w, n, app.armedGift, i);
+  else openCard(app, app.w, n, i);
 }
 
 export function wireInput(app) {
@@ -110,13 +99,13 @@ export function wireInput(app) {
     if (view === 'system') { if (e.button !== 0) return; const q = sysAt(game, cp, map.width, map.height); if (q) { game.ui.sysSel = q.name; app.panelKey = ''; renderPanel(app); if (dbl(q.name) && q.w && q.w.started) zoomTo(app, game.worlds.indexOf(q.w)) } return }
     const w = app.w, cv = app.cityView(), p = worldOf(cv, cp), t = app.t; app.pointer = p;
     // Right-click unties the bridge under the pointer.
-    if (e.button === 2) { const r = ropeAt(w, cp, cv, t); if (r) cutRope(app, r); return }
+    if (e.button === 2) { const r = ropeAt(w, cp, cv, t); if (r) untieRope(app, r.id); return }
     if (e.button !== 0) return;
     if (app.card) closeCard(app);
     const spot = (app.tool === 'move' || app.armedGift != null) && spotHit(game, w, cp, cv, t);
     if (spot) { onSpot(app, spot.n, spot.i); return }
     const n = nodeAt(w, cp, cv);
-    if (app.tool === 'cut') { const r = ropeAt(w, cp, cv, t); if (r) cutRope(app, r); return }
+    if (app.tool === 'cut') { const r = ropeAt(w, cp, cv, t); if (r) untieRope(app, r.id); return }
     if (app.tool === 'rope') { if (n) { app.drag = { kind: 'rope', id: n.id }; map.setPointerCapture(e.pointerId) } return }
     if (n) { app.drag = { kind: 'move', id: n.id, sx: p.x, sy: p.y, ox: n.x, oy: n.y, moved: false, strain: false }; map.setPointerCapture(e.pointerId); return }
     const r = ropeAt(w, cp, cv, t);

@@ -68,3 +68,22 @@ test('city tags name every island and the town, with no bridge-slot pips', () =>
   assert.ok(h.includes('TOWN'));
   assert.doesNotMatch(h, /pips/);
 });
+
+test('city tags are play-mode only and follow the N toggle', () => {
+  const wall = mkApp('wallpaper'); wall.game.ui.view = 'planet'; renderTags(wall);
+  assert.equal(wall.els.tags.innerHTML, '', 'no tags in wallpaper mode');
+  const off = mkApp('play'); off.game.ui.view = 'planet'; off.game.ui.names = false; renderTags(off);
+  assert.equal(off.els.tags.innerHTML, '', 'N hides them');
+  off.game.ui.names = true; invalidateTags(off); renderTags(off);
+  assert.ok(off.els.tags.innerHTML.length > 0, 'and N shows them again');
+});
+
+test('one name and one gift helper: towns, renamed islands and named huts', async () => {
+  const { nameOf, giftName } = await import('../web/js/ui/util.js');
+  const w = newGame(3).worlds[0], n = w.S.nodes.find(q => q.kind === 'island');
+  assert.equal(nameOf(w, w.hub), 'The town');
+  assert.equal(nameOf(w, n), w.def.isl[n.id].name);
+  n.name = 'PIPPIN'; assert.equal(nameOf(w, n), 'PIPPIN');
+  assert.equal(giftName({ kind: 'hut', name: 'MIRA' }), "MIRA's hut");
+  assert.equal(giftName({ kind: 'coral' }), 'Coral');
+});

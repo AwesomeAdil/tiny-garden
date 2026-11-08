@@ -1,16 +1,16 @@
 // The pick card (a small pixel card next to a clicked spot: its 2-3 picks, and any waiting gifts) and the gift
 // tray in the side panel (up to 3 gifts; clicking one arms it, and the next spot click places it).
-// Choosing calls sim/grow.js choose (or sim/events.js placeGift); the island's sprite rebuilds by itself because
+// Choosing calls sim/grow.js choose (or ui/util.js placeGiftAt); the island's sprite rebuilds by itself because
 // its key (draw/kit.js islandKey) changes with its spots.
 import { PixCtx } from '../core/pixctx.js';
 import { offers, choose } from '../sim/grow.js';
-import { placeGift } from '../sim/events.js';
 import { GIFTS } from '../sim/picks.js';
 import { islandSprite, drawIsland } from '../draw/kit.js';
 import { spotXY } from '../draw/city.js';
 import { worldView } from '../core/pixel.js';
 import { renderPanel } from './panel.js';
 import { say } from './guide.js';
+import { nameOf, giftName, placeGiftAt } from './util.js';
 
 const PREV = 24, BACK = '#181926';
 const PREVS = new Map();
@@ -30,8 +30,6 @@ export function propPreview(type, seed, prop, gift = null) {
   return cv;
 }
 
-export const giftName = g => g.kind === 'hut' && g.name ? `${g.name}'s hut` : GIFTS[g.kind] ? GIFTS[g.kind].name : 'Gift';
-const nameOf = (w, n) => n.name || w.def.isl[n.id].name;
 const SPOT_WORD = ['left rim', 'middle', 'right rim', 'middle', 'gift spot'];
 
 function button(cls, data, cv, label) {
@@ -66,9 +64,7 @@ function pick(app, b) {
     const p = offers(w, n, c.i).find(x => x.id === b.dataset.pick);
     if (p && choose(w, n, c.i, p.id)) say(app, `${p.name[0] + p.name.slice(1).toLowerCase()} grows on ${nameOf(w, n)}${p.sends ? `. It sends ${p.sends} now too.` : '.'}`);
   } else if (b.dataset.gift !== undefined) {
-    const gi = +b.dataset.gift, g = app.game.gifts[gi];
-    if (g && placeGift(app.game, w, n, gi, c.i)) say(app, `${giftName(g)} placed on ${nameOf(w, n)}.`);
-    app.armedGift = null; renderTray(app);
+    closeCard(app); placeGiftAt(app, w, n, +b.dataset.gift, c.i); return;
   }
   closeCard(app); app.panelKey = ''; renderPanel(app);
 }

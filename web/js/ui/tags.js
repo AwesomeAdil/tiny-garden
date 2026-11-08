@@ -18,8 +18,9 @@ const placeAt = (app, x, y) => {
   return `left:${((v.ox + x * v.k) / cw * 100).toFixed(2)}%;top:${((v.oy + y * v.k) / ch * 100).toFixed(2)}%`;
 };
 
+// Play mode only, and the N key hides them with the galaxy and system names (names.js namesOn).
 function tagsHTML(app) {
-  if (app.game.ui.view !== 'planet') return '';
+  const ui = app.game.ui; if (ui.view !== 'planet' || !namesOn(app.mode, ui)) return '';
   const w = app.w, ISL = w.def.isl, hub = w.hub, a = app.art, k = worldView(a && a.w || W, a && a.h || H).k;
   // under each island's rock: its name, and a star per stage past the first
   let h = isl(w).map(n => { const s = ISL[n.id], below = (depthFor(Math.max(4, Math.round(islandHW(n) * k))) + 4) / k;
