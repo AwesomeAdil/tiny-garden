@@ -3,6 +3,7 @@
 // or on PixCtx. Island sprites are pre-rendered into a transparent PixCtx and blitted each frame; only the
 // animated bits (falls, smoke, lamp flicker, fireflies, willows, banners) are drawn live.
 // The mockup's globals are gone: haze is a per-call wrapper (hazed) and every random stream is seeded per call.
+import { STARS, recordStars } from '../core/stars.js';
 import { P, mix, rngf, rgb, u32, B8, NN, NZ } from '../core/pixel.js';
 import { PixCtx } from '../core/pixctx.js';
 import { ISL_OCEAN, ISL_LAVA, ISLAND_HW } from '../sim/content.js';
@@ -84,8 +85,9 @@ export function skyLayer(W, H, seed, o = {}) {
 }
 export function sun(c, x, y) { A(c, '#f5a97f', .18, x - 3, y - 2, 7, 5); A(c, '#f5a97f', .18, x - 2, y - 3, 5, 7); P(c, '#f5a97f', x - 1, y - 2, 3, 5); P(c, '#f5a97f', x - 2, y - 1, 5, 3); P(c, '#eed49f', x - 1, y - 1, 3, 3); P(c, '#fff4d6', x, y - 1) }
 export function drawSky(c, L, t) { c.putImageData(L.img, 0, 0); twinkle(c, L.tw, t) }
-// The twinkling stars of a sky layer (a list of {x, y, f, p, big}), drawn over whatever is there.
-export function twinkle(c, tw, t) { for (const s of tw) { const b = Math.sin(t * s.f + s.p); if (b > -.2) P(c, b > .6 ? '#e3eafc' : '#8087a2', s.x, s.y); if (s.big && b > .75) { A(c, '#8087a2', .7, s.x - 1, s.y); A(c, '#8087a2', .7, s.x + 1, s.y); A(c, '#8087a2', .7, s.x, s.y - 1); A(c, '#8087a2', .7, s.x, s.y + 1) } } }
+// The twinkling stars of a sky layer (a list of {x, y, f, p, big}), drawn over whatever is there. In wallpaper mode
+// (STARS.on) nothing is drawn: the stars are recorded for their CSS-animated layers (core/stars.js).
+export function twinkle(c, tw, t) { if (STARS.on) return recordStars(c, tw); for (const s of tw) { const b = Math.sin(t * s.f + s.p); if (b > -.2) P(c, b > .6 ? '#e3eafc' : '#8087a2', s.x, s.y); if (s.big && b > .75) { A(c, '#8087a2', .7, s.x - 1, s.y); A(c, '#8087a2', .7, s.x + 1, s.y); A(c, '#8087a2', .7, s.x, s.y - 1); A(c, '#8087a2', .7, s.x, s.y + 1) } } }
 
 // ---------- TIDE: an earth-like world per game seed (page 50, variant B) ----------
 // A world map of MW x MH map px (x wraps; y runs pole to pole) from the seed: domain-warped continents with a sea

@@ -47,6 +47,12 @@ body:not(.wallpaper) #catch.on { display:block; }
 /* ---------- map overlays ---------- */
 #tags { position:absolute; inset:0; pointer-events:none; }
 #names { position:absolute; left:0; top:0; pointer-events:none; }
+/* The wallpaper's twinkling stars (js/core/stars.js): layers over the map on its pixel grid, each stepping its
+   opacity through sin's twinkle (bright above .6, dim above -.2, off below), so the compositor animates them. */
+#stars, #stars canvas { position:absolute; left:0; top:0; width:100%; height:100%; pointer-events:none; }
+#stars canvas { animation-name:twinkle; animation-timing-function:step-end; animation-iteration-count:infinite; will-change:opacity; }
+body:not(.wallpaper) #stars { display:none; }
+@keyframes twinkle { 0% { opacity:.5 } 10.25% { opacity:1 } 39.75% { opacity:.5 } 53.2% { opacity:0 } 96.8% { opacity:.5 } 100% { opacity:.5 } }
 .ntag { position:absolute; transform:translate(-50%,0); display:flex; flex-direction:column; align-items:center; gap:calc(1px * var(--s)); font:700 calc(10.5px * var(--s)) var(--mono); line-height:1.2; letter-spacing:calc(.6px * var(--s)); white-space:nowrap; text-shadow:0 1px 0 #14151f,0 0 4px #14151f; }
 .ntag img { width:calc(12px * var(--s)); height:calc(12px * var(--s)); image-rendering:pixelated; vertical-align:middle; }
 .ntag .lv { color:#c6a0f6; }

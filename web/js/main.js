@@ -25,24 +25,27 @@ import { wireInput } from './ui/input.js';
 import { wireCard, openCard, closeCard, renderTray } from './ui/card.js';
 import { PixCtx } from './core/pixctx.js';
 import { present } from './core/present.js';
+import { WALL_MS } from './core/cadence.js';
+import { STARS, GROUPS, PERIODS, visibleStars, starDiff, drawStar, clearStar } from './core/stars.js';
 
 const SAVE_MS = 30000;
-// Wallpaper is a quiet background that still moves smoothly: the map draws 10 times a second (walkers,
-// waterfalls, events, twinkling), but WebKit's cost per frame grows with the area it puts on screen, so only the
-// rows that changed are put (core/present.js), a frame that didn't change puts nothing, and the full-screen sky
-// around the map repaints every 10 s.
+// Wallpaper is a quiet background that still moves: the map draws 6 times a second (WALL_MS, core/cadence.js:
+// walkers, waterfalls, events), but WebKit's cost per frame grows with the area it repaints, so only the box
+// around the pixels that changed is put (core/present.js), a frame that didn't change puts nothing, the twinkling
+// stars live on CSS-animated layers instead of the canvas (core/stars.js), and the full-screen sky around the map
+// repaints every 10 s.
 // docs/TIMINGS.md has the measurements.
 // The close-up's dawn planet body is per-pixel, so it re-renders every 4 s in wallpaper (every 0.5 s in play).
-// The wallpaper galaxy turns at 0.2 of play's spin in steps of 2/3 s (about every 7th frame), so the disc edge moves
+// The wallpaper galaxy turns at 0.2 of play's spin in steps of 2/3 s (every 4th frame), so the disc edge moves
 // 0.75 px a step and reads as smooth; the disc costs about 2.5 ms to recompute at 688x288 (docs/TIMINGS.md).
-const WALL_MS = 100, SKY_MS = 10000, GAL_WALL_SPIN = .2, GAL_WALL_STEP = 1.5, DAWN_STEP = 4;
+const SKY_MS = 10000, GAL_WALL_SPIN = .2, GAL_WALL_STEP = 1.5, DAWN_STEP = 4;
 const $ = id => document.getElementById(id);
 const bridge = () => window.webkit?.messageHandlers?.garden;
 const post = msg => { try { bridge()?.postMessage(msg) } catch (e) { /* no host */ } };
 const native = !!bridge();
 
 const els = { sky: $('sky'), stage: $('stage'), mapbox: $('mapbox'), map: $('map'), names: $('names'), tags: $('tags'), card: $('card'), catch: $('catch'), ask: $('ask'),
-  side: $('side'), view: $('view'), vlbl: $('vlbl'), vday: $('vday'), tray: $('tray'), panel: $('panel'), dock: $('dock'), newbtn: $('newbtn'), guide: $('guide'), hint: $('hint') };
+  side: $('side'), stars: $('stars'), view: $('view'), vlbl: $('vlbl'), vday: $('vday'), tray: $('tray'), panel: $('panel'), dock: $('dock'), newbtn: $('newbtn'), guide: $('guide'), hint: $('hint') };
 
 const app = {
   game: null, mode: 'wallpaper', tool: 'move', drag: null, pointer: null, armedGift: null, card: null, t: 0, panelKey: '', namesKey: '', nameU: 2, hintUntil: 0, asking: false, catching: false,
@@ -88,7 +91,7 @@ function tick() {
     if (now - lastSave >= SAVE_MS) save();
   } finally { schedule() }
 }
-// Play runs on animation frames; wallpaper ticks 10 times a second.
+// Play runs on animation frames; wallpaper ticks 6 times a second.
 function schedule() {
   if (paused || timer || raf) return;
   if (app.mode === 'play') raf = requestAnimationFrame(tick); else timer = setTimeout(tick, WALL_MS);
@@ -105,14 +108,43 @@ app.art = art;
 function drawMain(force = false) {
   const game = app.game, ui = game.ui, w = app.w, t = app.t, play = app.mode === 'play', v = ui.view;
   const c = art.pix;
+  // Wallpaper: twinkle() records the stars instead of drawing them (core/stars.js); updateStars puts them on their layers.
+  STARS.on = !play; STARS.list.length = 0;
+  try {
   // Neighbour galaxies are hidden in wallpaper mode (galPanFor gives null there, the play pan otherwise).
   if (v === 'galaxy') { if (!play) galInvalidate(c); drawGalaxy(c, t, play ? ui.galSel : null, play ? t : Math.floor(t * GAL_WALL_STEP) / GAL_WALL_STEP * GAL_WALL_SPIN, art.w, art.h, galPanFor(app.mode, game)) }
   else if (v === 'system') drawSystem(c, game, t, play ? ui.sysSel : null, art.w, art.h);
   else if (v === 'close') { const n = closeSubject(w), rt = play ? Math.floor(t * 2) / 2 : Math.floor(t / DAWN_STEP) * DAWN_STEP; if (n) islandView(c, w, n, t, art.w, art.h, rt, game.seed); else planetView(c, game, w, t, art.w, art.h, rt) }
   else drawCity(c, game, w, t, app.cityView(), play ? { drag: app.drag, pointer: app.pointer, tool: app.tool, armedGift: app.armedGift, card: app.card } : null);
+  } finally { STARS.on = false }
   art.view = v; present(app.mapCtx, c, art.prev, force);
+  if (!play) updateStars(force);
   const p = performance.now(); if (play || p - lastSky >= SKY_MS - 4) { lastSky = p; drawSky(t) }
 }
+// The twinkling stars' layers (wallpaper only): GROUPS canvases over the map at its pixel size, each with a CSS
+// animation stepping its opacity through the twinkle (style.css @keyframes twinkle). Only stars that were covered
+// or uncovered since the last frame are drawn or cleared; force (a new size, view or mode) redraws them all.
+const stars = { cv: [], shown: new Map(), w: 0, h: 0 };
+function updateStars(force) {
+  const w = art.w, h = art.h;
+  if (stars.cv.length !== GROUPS) {
+    for (let g = 0; g < GROUPS; g++) {
+      const cv = document.createElement('canvas'), d = PERIODS[g];
+      cv.className = 'tw'; Object.assign(cv.style, { animationDuration: d + 's', animationDelay: (-d * g / GROUPS).toFixed(2) + 's' });
+      els.stars.append(cv); stars.cv.push(cv);
+    }
+  }
+  const next = visibleStars(STARS.list, art.pix.px, w); STARS.list.length = 0;
+  if (force || stars.w !== w || stars.h !== h) {
+    stars.w = w; stars.h = h; stars.shown = new Map();
+    for (const cv of stars.cv) { if (cv.width !== w) cv.width = w; if (cv.height !== h) cv.height = h; cv.getContext('2d').clearRect(0, 0, w, h) }
+  }
+  const { add, del } = starDiff(stars.shown, next), ctx = g => stars.cv[g].getContext('2d');
+  for (const s of del) clearStar(ctx(s.g), s);
+  for (const s of add) drawStar(ctx(s.g), s);
+  stars.shown = next;
+}
+
 // The close-up shows the world's selected island, otherwise its town.
 function closeSubject(w) { const S = w.S, n = S.sel && S.sel.t === 'node' ? node(w, S.sel.id) : null; return n && n.kind === 'island' ? n : null }
 
