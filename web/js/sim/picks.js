@@ -41,3 +41,12 @@ export const MID_PICKS = {
   obsidian: [p('glassShard', 'GLASS SHARD', 'crystal'), p('blackSpire', 'BLACK SPIRE', 'spire'), p('nightFlowers', 'NIGHT FLOWERS', 'flowers'), p('obsHut', 'OBSIDIAN HUT', 'hut'), p('darkBanner', 'DARK BANNER', 'banner')],
   kiln: [p('kilnHut', 'KILN HUT', 'hut'), p('clayStack', 'CLAY STACK', 'stone'), p('smokeStack', 'SMOKE STACK', 'spire'), p('brickFence', 'BRICK FENCE', 'fence'), p('coalLamp', 'COAL LAMP', 'lamp')],
 };
+
+// Gifts left by the rare visitors. Variants are 0-5; perks are read off an island's `gifts` (no stacking).
+export const GIFTS = {
+  coral: { id: 'coral', name: 'Coral', from: 'whale', perk: 'Walkers on bridges touching this island are 15% faster.' },
+  hut: { id: 'hut', name: 'Hut', from: 'traveller', perk: 'This island makes goods 10% faster.' },
+  banner: { id: 'banner', name: 'Banner', from: 'aurora', perk: 'This island\'s next stages cost 10% less (rounded up).' },
+};
+
+export const TRAVELLER_NAMES = ['MIRA', 'OTTO', 'LUNA', 'BRAM', 'TESS', 'FINN', 'IVY', 'KAI', 'NOOR', 'PIP', 'ASH', 'WREN', 'SOL', 'DEL'];

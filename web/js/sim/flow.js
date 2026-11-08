@@ -11,7 +11,7 @@ const zero = () => Object.fromEntries(GOODS.map(k => [k, 0]));
 export function cost(w, n) {
   if (n.kind === 'planet') return townCost(w);
   const c = zero(), m = makes(w, n), each = n.stage >= 1 && n.stage <= 3 ? STAGE_COST[n.stage] : 0;
-  for (const k of GOODS) if (!m.includes(k) && !n.satisfied.includes(k)) c[k] = each;
+  for (const k of GOODS) if (!m.includes(k) && !n.satisfied.includes(k)) c[k] = has(n, 'banner') && each > 0 ? Math.ceil(each * .9) : each;
   return c;
 }
 
@@ -53,8 +53,9 @@ export function stalls(w) {
   return out;
 }
 
-// Task 5 multiplies in the coral perk.
-export const walkSpeed = (w, r) => 1;
+// Perks come straight off an island's gifts; none of them stack.
+const has = (n, kind) => (n.gifts || []).some(g => g.kind === kind);
+export const walkSpeed = (w, r) => (has(node(w, r.a), 'coral') || has(node(w, r.b), 'coral') ? 1.15 : 1);
 
 // Re-target X's relay queue; items no one needs any more are dropped (the good is lost).
 function retarget(w, X) {
@@ -105,7 +106,7 @@ export function step(w, dt) {
   // Making: only while someone reachable needs the good.
   for (const n of isl(w)) for (const k of makes(w, n)) {
     if (n.out[k] >= OUTBOX || demandFor(w, n, k) === null) continue;
-    n.out[k] = Math.min(OUTBOX, n.out[k] + RATE * dt);
+    n.out[k] = Math.min(OUTBOX, n.out[k] + RATE * (has(n, 'hut') ? 1.1 : 1) * dt);
   }
   for (const r of S.ropes) {
     const A = node(w, r.a), B = node(w, r.b), L = Math.max(8, dist(A, B) - 24);
