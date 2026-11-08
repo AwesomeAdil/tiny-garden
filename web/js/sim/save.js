@@ -91,6 +91,7 @@ export function deserialize(obj, defs = WORLD_DEFS) {
     obj.ui.world = Math.max(0, remap(obj.ui.world));
     if (typeof obj.ui.names !== 'boolean') obj.ui.names = true;
     if (!obj.ui.lessons || typeof obj.ui.lessons !== 'object') obj.ui.lessons = {};
+    if (typeof obj.ui.away !== 'string') delete obj.ui.away; // the catch-up's line, until play mode shows it
     if (!obj.ui.galPan || !num(obj.ui.galPan.x) || !num(obj.ui.galPan.y)) obj.ui.galPan = { x: 0, y: 0 };
     const gifts = obj.gifts.filter(goodGift), ev = cleanEv(obj.ev);
     if (!ev) return null;

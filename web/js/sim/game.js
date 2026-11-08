@@ -2,8 +2,9 @@ import { WORLD_DEFS } from './content.js';
 import { makeWorld } from './world.js';
 import { stepAll } from './system.js';
 import { newEv, endCatchup } from './events.js';
+import { clockStep } from './clock.js';
 
-const STEP = .1, MAX_GAP = 43200;
+const STEP = .1;
 
 export function freshWorld(def, seed, started) {
   const w = makeWorld(def, seed + def.seedOffset);
@@ -24,10 +25,14 @@ export function advance(game, realSec, mode, opts = {}) {
   if (rem > 1e-6) stepAll(game, rem, opts);
 }
 
-export function catchUp(game, nowMs) {
-  const elapsed = Math.min(MAX_GAP, Math.max(0, (nowMs - game.savedAt) / 1000));
-  advance(game, elapsed, 'wallpaper', { catchup: true });
-  endCatchup(game);
-  game.savedAt = nowMs;
-  return elapsed;
+// One app frame at nowMs (main.js tick): the live step in the current mode, then a chunk of catch-up (sim/clock.js).
+// While any catch-up is running, both steps go through the catch-up event rule (at most one visit, no live visit
+// starting mid-way), however many frames the gap takes; the catch-up ends on the frame the clock is current.
+export function frame(game, clock, nowMs, mode) {
+  const { live, chunk } = clockStep(clock, nowMs), opts = chunk > 0 ? { catchup: true } : {};
+  if (live > 0) advance(game, live, mode, opts);
+  if (chunk > 0) advance(game, chunk, 'wallpaper', opts);
+  // A save made mid-catch-up can come back with no gap left to run; it still has to end.
+  if (clock.behind === 0 && game.ev.caught) endCatchup(game);
+  return { live, chunk };
 }

@@ -40,9 +40,9 @@ export function renderGuide(app) { const el = app.els.guide, v = guideText(app);
 const TOOLHINT = { move: '<b>Move:</b> drag an island. Click a bridge to steer it, a glowing spot to grow something.', rope: '<b>Tie a bridge:</b> drag from one place to another. The dotted circle is how far a bridge reaches.', cut: '<b>Untie:</b> click a bridge to remove it. Right-click works in any tool.' };
 
 // Show a message on the hint line for 4 s. Messages from a world you're not looking at name it.
-export function say(app, msg, warn, from) {
+export function say(app, msg, warn, from, ms = 4000) {
   if (from && from !== app.w) msg = from.def.name + ': ' + msg;
-  const el = app.els.hint; el.innerHTML = '<b>' + msg + '</b>'; el.dataset.last = ''; el.classList.toggle('warn', !!warn); app.hintUntil = performance.now() + 4000;
+  const el = app.els.hint; el.innerHTML = '<b>' + msg + '</b>'; el.dataset.last = ''; el.classList.toggle('warn', !!warn); app.hintUntil = performance.now() + ms;
 }
 
 export function idleHint(app) {
@@ -52,10 +52,14 @@ export function idleHint(app) {
   if (el.dataset.last !== v) { el.dataset.last = v; el.innerHTML = v; el.classList.remove('warn') }
 }
 
-// Sim events go to the hint line in play mode; in wallpaper mode nobody is reading, so they're dropped.
+// Sim events go to the hint line in play mode; in wallpaper mode nobody is reading, so they're dropped. The
+// catch-up's "while you were away" line is the exception: it is kept in the save (game.ui.away) and shown, for 8 s,
+// the first time play mode is open once the catch-up has finished, then cleared.
 export const eventLine = kind => (({ whale: 'A space whale is passing!', traveller: 'A traveller is passing by!', aurora: 'An aurora is lighting the sky!' })[kind] || 'Someone is passing by!');
 
 export function drainEvents(app) {
+  const ui = app.game.ui;
+  if (ui.away && app.mode === 'play' && !app.catching) { say(app, ui.away, false, null, 8000); delete ui.away }
   // A visit starts when game.ev.active appears: one line per visit, however long it lasts.
   const a = app.game.ev && app.game.ev.active, id = a ? `${a.kind}@${a.t0}` : null;
   if (id !== app.seenEv) { app.seenEv = id; if (a && app.mode === 'play') say(app, eventLine(a.kind)) }

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { newGame, advance, catchUp } from '../web/js/sim/game.js';
+import { newGame, advance, frame } from '../web/js/sim/game.js';
+import { startClock, clockSavedAt } from '../web/js/sim/clock.js';
 import { WORLD_DEFS } from '../web/js/sim/content.js';
 import { autoNet } from './helpers.js';
 import { serialize } from '../web/js/sim/save.js';
@@ -28,18 +29,17 @@ test('catch-up equals playing it live', () => {
 });
 
 test('catch-up is capped at 12 hours and never runs backwards', () => {
-  const g = newGame(3);
-  g.savedAt = 1000;
-  const now = 1000 + 48 * 3600 * 1000;
-  const t0 = g.worlds[0].S.time;
-  assert.equal(catchUp(g, now), 43200);
-  assert.ok(Math.abs(g.worlds[0].S.time - t0 - 43200) < 1e-3);
-  assert.equal(g.savedAt, now);
-  g.savedAt = now + 5000;
-  const t1 = g.worlds[0].S.time;
-  assert.equal(catchUp(g, now), 0);
+  // Driven as main.js does: a clock booted from the save's time, then frames until it is current.
+  const g = newGame(3), now = 1000 + 48 * 3600 * 1000, t0 = g.worlds[0].S.time;
+  const c = startClock(now, 1000);
+  assert.equal(c.behind, 43200);
+  let ms = now; while (c.behind > 0) frame(g, c, ms += 100, 'wallpaper');
+  assert.ok(Math.abs(g.worlds[0].S.time - t0 - 43200 - (ms - now) / 1000) < 1e-3);
+  assert.equal(clockSavedAt(c), ms);
+  const back = startClock(now, now + 5000), t1 = g.worlds[0].S.time;
+  assert.equal(back.behind, 0);
+  frame(g, back, now, 'wallpaper');
   assert.equal(g.worlds[0].S.time, t1);
-  assert.equal(g.savedAt, now);
 });
 
 test('4x only counts in play mode', () => {

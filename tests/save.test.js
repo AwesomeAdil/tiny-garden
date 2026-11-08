@@ -7,7 +7,8 @@ import { WORLD_DEFS } from '../web/js/sim/content.js';
 import { isl, node } from '../web/js/sim/world.js';
 import { placeGift } from '../web/js/sim/events.js';
 import { rename } from '../web/js/sim/grow.js';
-import { catchUp } from '../web/js/sim/game.js';
+import { frame } from '../web/js/sim/game.js';
+import { startClock } from '../web/js/sim/clock.js';
 import { allPairs } from '../web/js/sim/graph.js';
 
 const trip = o => JSON.parse(JSON.stringify(o));
@@ -156,8 +157,8 @@ test('a bad active event is dropped and the game survives catch-up; bad ev numbe
   const back = deserialize(o);
   assert.ok(back);
   assert.equal(back.ev.active, null);
-  back.savedAt = 0;
-  catchUp(back, 3600 * 1000);
+  const ck = startClock(3600 * 1000, 0); let ms = ck.lastMs;
+  while (ck.behind > 0) frame(back, ck, ms += 100, 'wallpaper');
   for (const k of ['rs', 'nextAt', 'nextGift']) {
     const b = trip(serialize(mk(), 1)); b.ev[k] = 'x';
     assert.equal(deserialize(b), null, k);

@@ -54,7 +54,7 @@ test('catch-up fires at most one event', () => {
   assert.equal(g.ev.active, null);
   assert.ok(g.ev.caught);
   assert.ok(g.ev.nextAt > W0(g).S.time);
-  assert.ok(W0(g).events.some(e => /while you were away/.test(e.msg)));
+  assert.match(g.ui.away, /while you were away\.$/);
   endCatchup(g);
   assert.equal(g.ev.caught, false);
   g.ev.nextAt = W0(g).S.time + 1;
@@ -72,7 +72,7 @@ test('a game saved mid-event gives one gift when caught up, not two', () => {
   endCatchup(g);
   assert.equal(g.gifts.length, 1);
   assert.equal(g.ev.active, null);
-  assert.equal(w.events.filter(e => /while you were away/.test(e.msg)).length, 1);
+  assert.match(g.ui.away, /while you were away\.$/);
   advance(g, 600, 'wallpaper');
   assert.equal(g.gifts.length, 1, 'nothing left over resolves afterwards');
 });

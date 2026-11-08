@@ -152,6 +152,20 @@ test('drainEvents posts a visit exactly once across many frames', () => {
   assert.equal(said, 2, 'the next visit speaks again');
 });
 
+test('the away line waits for play mode and the end of catch-up, shows once, then clears', () => {
+  const app = mkApp(); let shown = [];
+  Object.defineProperty(app.els.hint, 'innerHTML', { set(v) { shown.push(v) } });
+  const line = 'A space whale passed by while you were away.';
+  app.game.ui.away = line; app.mode = 'wallpaper';
+  drainEvents(app);
+  assert.equal(shown.length, 0, 'nobody reads the wallpaper'); assert.equal(app.game.ui.away, line, 'kept for later');
+  app.mode = 'play'; app.catching = true; drainEvents(app);
+  assert.equal(shown.length, 0, 'not while still catching up');
+  app.catching = false; drainEvents(app); drainEvents(app);
+  assert.equal(shown.length, 1); assert.match(shown[0], /space whale passed by while you were away/);
+  assert.equal(app.game.ui.away, undefined, 'cleared once shown');
+});
+
 test('lesson 4 completes on a stage-3 island and on a one-way bridge, and survives a save', () => {
   const lesson = 'Tap a bridge to make it one-way.';
   const base = () => { const app = mkApp(), w = app.w, [a] = islands(w); const r = tie(w, w.hub, a); a.paid.water = 1; return { app, w, a, r } };

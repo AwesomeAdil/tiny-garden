@@ -2,11 +2,11 @@
 // Swift -> JS: garden.boot(saveObj|null, mode, nowMs, {topInset}?), setMode('wallpaper'|'play'), pause(), resume(), saveNow() -> object.
 // JS -> Swift: webkit.messageHandlers.garden.postMessage({type:'ready'|'save'|'exit'|'bad-save'|'new-map', ...}).
 // Standalone (no webkit, for dev and shots): boots from ?seed&mode&view&skip&world&n&dump.
-import { newGame, advance } from './sim/game.js';
+import { newGame, frame } from './sim/game.js';
 import { serialize } from './sim/save.js';
 import { trialLoad } from './boot.js';
 import { skip } from './sim/dev.js';
-import { startClock, clockStep, clockSavedAt } from './sim/clock.js';
+import { startClock, clockSavedAt } from './sim/clock.js';
 import { node, tie } from './sim/world.js';
 import { sysPlanets } from './sim/system.js';
 import { W, H } from './sim/content.js';
@@ -77,10 +77,10 @@ function tick() {
   // One bad frame must not stop the garden: the next one is always scheduled, and the error still reaches
   // window.onerror (index.html forwards it to the app log).
   try {
-    const game = app.game, now = Date.now(), { live, chunk } = clockStep(clock, now);
-    // Any gap over 1 s (sleep, quit, throttling) is caught up in chunks, never in one frame (sim/clock.js).
-    if (live > 0) advance(game, live, app.mode);
-    if (chunk > 0) advance(game, chunk, 'wallpaper');
+    const now = Date.now();
+    // Any gap over 1 s (sleep, quit, throttling) is caught up in chunks, never in one frame (sim/clock.js), under
+    // the catch-up event rule: at most one visit for the whole gap (sim/game.js frame, tests/catchup.test.js).
+    frame(app.game, clock, now, app.mode);
     app.catching = clock.behind > 0;
     drainEvents(app);
 

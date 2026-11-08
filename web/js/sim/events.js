@@ -32,9 +32,20 @@ function giftOf(ev, kind, variant) {
   return g;
 }
 
+// Returns false when the tray was full and the gift was lost.
 function leave(game, kind, variant) {
   const g = giftOf(game.ev, kind, variant);
-  if (game.gifts.length < TRAY_MAX) game.gifts.push(g);
+  if (game.gifts.length >= TRAY_MAX) return false;
+  game.gifts.push(g);
+  return true;
+}
+
+// The catch-up's one visit: its gift, and the "while you were away" line kept in the save (game.ui.away) until
+// play mode next opens (ui/guide.js drainEvents), since the catch-up usually runs while the wallpaper is showing.
+function caughtVisit(game, kind, variant) {
+  const kept = leave(game, kind, variant);
+  game.ui.away = EVENTS[kind].line + (kept ? '' : ' The tray was full.');
+  game.ev.caught = true;
 }
 
 export function stepEvents(game, dt, opts = {}) {
@@ -44,19 +55,13 @@ export function stepEvents(game, dt, opts = {}) {
     if (ev.active) {
       const a = ev.active;
       ev.active = null;
-      if (!ev.caught) {
-        leave(game, a.kind, a.variant);
-        w0.events.push({ msg: EVENTS[a.kind].line, warn: false });
-        ev.caught = true;
-      }
+      if (!ev.caught) caughtVisit(game, a.kind, a.variant);
       return;
     }
     if (t < ev.nextAt) return;
     if (!ev.caught) {
       const kind = KINDS[Math.floor(draw(ev) * KINDS.length)], variant = Math.floor(draw(ev) * 6);
-      leave(game, kind, variant);
-      w0.events.push({ msg: EVENTS[kind].line, warn: false });
-      ev.caught = true;
+      caughtVisit(game, kind, variant);
     }
     ev.nextAt = t + gap(ev);
     return;
