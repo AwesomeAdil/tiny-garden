@@ -29,35 +29,54 @@ export const BAY = [[0, .5], [.75, .25]];
 export const bob = (t, ph = 0) => Math.round(Math.sin(t * .8 + ph) * .9);
 
 // ---------- sky ----------
-const DUST = ['#8aadf4', '#c6a0f6', '#f5a97f'], DUST_A = .06;
-// 2-3 soft Bayer-dithered bands of colour, each pixel moved at most 6% toward its band's colour.
-function stardust(px, W, H, seed) {
-  const R = rngf(seed * 977 + 13), n = 2 + (R() < .5 ? 1 : 0), c0 = R() * 3 | 0, d = px.d, done = new Uint8Array(W * H);
-  for (let b = 0; b < n; b++) {
-    const [cr, cg, cb] = rgb(DUST[(c0 + b) % 3]), y0 = H * (.18 + R() * .64), slope = (R() - .5) * .7 * H / W, ww = H * (.07 + R() * .08), ph = R() * 50;
-    for (let x = 0; x < W; x++) {
-      const cy = y0 + slope * (x - W / 2) + sn(x * .03, ph) * ww * .8;
-      for (let y = Math.max(0, Math.ceil(cy - ww)); y < Math.min(H, cy + ww); y++) {
-        const q = Math.abs(y - cy) / ww, f = (1 - q) * (1 - q) * (.35 + .65 * NN(x * .7 + ph * 5, y * .7)), k = y * W + x;
-        if (done[k] || f <= B8[((y & 7) << 3) | (x & 7)]) continue;
-        done[k] = 1; const i = k * 4;
-        d[i] += (cr - d[i]) * DUST_A; d[i + 1] += (cg - d[i + 1]) * DUST_A; d[i + 2] += (cb - d[i + 2]) * DUST_A;
-      }
-    }
+const BLUE = rgb('#8aadf4'), MAUVE = rgb('#c6a0f6'), PEACH = rgb('#f5a97f'), SKYB = rgb('#7dc4e4');
+const lerp3 = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
+// Move pixel (x,y) toward colour c (rgb array) by a.
+function tint(d, W, x, y, c, a) { const i = (y * W + x) * 4; d[i] += (c[0] - d[i]) * a; d[i + 1] += (c[1] - d[i + 1]) * a; d[i + 2] += (c[2] - d[i + 2]) * a }
+// Quantise density f (0..1) into n dithered levels (0..1 in steps of 1/n), the edge between levels broken by Bayer.
+function steps(f, n, x, y) { if (f <= 0) return 0; const v = Math.min(1, f) * n, b = Math.floor(v); return Math.min(n, b + (v - b > B8[((y & 7) << 3) | (x & 7)] ? 1 : 0)) / n }
+// The Milky band: a tilted galactic band (peach lower left, mauve, cool blue upper right, 8-17% tint) with a dark dust rift
+// wandering through its middle that thins both the tint and the stars. Paints into px and returns {dens, rift} per pixel,
+// which bandStars uses to stipple stars into it.
+function milkyBand(px, W, H) {
+  const d = px.d, ang = -.30, ca = Math.cos(ang), sa = Math.sin(ang), hw = H * .36, cx = W * .5, cy = H * .46;
+  const rift = new Float32Array(W * H), dens = new Float32Array(W * H);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const u = (x - cx) * ca + (y - cy) * sa, v = -(x - cx) * sa + (y - cy) * ca; // u along the band, v across
+    const bend = sn(u * .006, 5) * hw * .22, vv = v - bend, q = Math.abs(vv) / hw;
+    if (q >= 1) continue;
+    const t = Math.max(0, Math.min(1, u / W + .5)), core = (1 - q) ** 1.6;
+    const cloud = .5 + .7 * NN(u * .7 + 20, vv * .9 + 100) * (.6 + .5 * NN(u * 2.4, vv * 2.4 + 5));
+    const rv = Math.abs(vv - hw * .08 * (NN(u * .5, 77) - .5) * 4) / (hw * .08), rf = rv < 1 ? (1 - rv) * (.5 + .6 * NN(u * 1.3 + 3, vv * 3)) : 0;
+    rift[y * W + x] = rf; dens[y * W + x] = core * cloud;
+    const f = core * cloud * (1 - Math.min(.6, rf * .8)), s = steps(f * 1.6, 4, x, y);
+    if (s) tint(d, W, x, y, t < .5 ? lerp3(PEACH, MAUVE, t * 2) : lerp3(MAUVE, SKYB, (t - .5) * 2), .20 * s);
+    if (rf > .35 && steps(rf, 3, x, y) > .4) { const i = (y * W + x) * 4; d[i] *= .93; d[i + 1] *= .93; d[i + 2] *= .94 }
   }
+  return { dens, rift };
+}
+// A dense stipple of stars packed into the band, thinned by the rift; returns the few that twinkle.
+function bandStars(px, W, H, seed, { dens, rift }) {
+  const R = rngf(seed * 977 + 13), n = Math.round(W * H / 14), extra = [];
+  for (let i = 0; i < n; i++) {
+    const x = R() * W | 0, y = R() * H | 0, k = y * W + x, ds = dens[k] * (1 - Math.min(1, rift[k] * 2));
+    if (ds < .08 || R() > ds * 1.2) continue;
+    const b = R();
+    if (b < .6) P(px, '#3b3f55', x, y); else if (b < .88) P(px, '#5b6079', x, y); else if (b < .97) P(px, '#8087a2', x, y); else extra.push({ x, y, f: .7 + R() * 1.3, p: R() * 7, big: R() < .15 });
+  }
+  return extra;
 }
 const SKIES = new Map();
-// The starfield: a 3-step dithered gradient, stardust, faint fixed stars, and a list of twinkling ones.
-// Cached by size and seed; returns {img (ImageData), px (PixCtx), tw}.
+// The starfield: a 4-step dithered gradient, the Milky band (o.band === false leaves it out), faint fixed stars, and a list
+// of twinkling ones. Cached by size, seed and options; returns {img (ImageData), px (PixCtx), tw}.
 export function skyLayer(W, H, seed, o = {}) {
-  const key = [W, H, seed, o.top, o.bot, o.glow].join();
+  const key = [W, H, seed, o.top, o.bot, o.glow, o.band].join();
   let L = SKIES.get(key); if (L) return L;
   const px = new PixCtx(W, H), R = rngf(seed);
   const top = o.top || '#101119', bot = o.bot || '#1c1f33', st = [top, mixc(top, bot, .34), mixc(top, bot, .67), bot], su = st.map(u32);
   for (let y = 0; y < H; y++) { const f = y / H * 3, i = Math.min(2, Math.floor(f)), fr = f - i; for (let x = 0; x < W; x++) px.px[y * W + x] = fr > BAY[y & 1][x & 1] + .12 ? su[i + 1] : su[i] }
   if (o.glow) { const [gx, gy, gr, gc] = o.glow; for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const d = Math.hypot(x - gx, (y - gy) * 1.3) / gr; if (d < 1 && (1 - d) * .9 > BAY[y & 1][x & 1] + .25) P(px, mixc(st[Math.min(3, Math.floor(y / H * 3))], gc, .1), x, y) } }
-  stardust(px, W, H, seed);
-  const n = Math.round(W * H / 140), tw = [];
+  const tw = o.band === false ? [] : bandStars(px, W, H, seed, milkyBand(px, W, H)), n = Math.round(W * H / 140);
   for (let i = 0; i < n; i++) { const x = R() * W | 0, y = R() * H | 0, b = R(); if (b < .7) P(px, b < .35 ? '#2a2d42' : '#3b3f55', x, y); else tw.push({ x, y, f: .6 + R() * 1.4, p: R() * 7, big: R() < .2 }) }
   L = { img: px.img, px, tw };
   SKIES.set(key, L); if (SKIES.size > 6) SKIES.delete(SKIES.keys().next().value);

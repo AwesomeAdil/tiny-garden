@@ -22,7 +22,7 @@ test('galaxy pan is clamped so the home disc stays partly on screen', () => {
   assert.ok(lit > 50, 'some of the disc is still on screen');
 });
 
-const skyAt = t => { const c = new PixCtx(W, H), L = skyLayer(W, H, 57); c.putImageData(L.img, 0, 0); twinkle(c, L.tw, t); return c };
+const skyAt = t => { const c = new PixCtx(W, H), L = skyLayer(W, H, 57, { band: false }); c.putImageData(L.img, 0, 0); twinkle(c, L.tw, t); return c };
 const diffIn = (a, b, x0, y0, x1, y1) => { let m = 0; for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) if (a.px[y * W + x] !== b.px[y * W + x]) m++; return m };
 
 test('wallpaper galaxy is home alone: no pan, no neighbours', () => {
@@ -59,7 +59,7 @@ test('star systems follow the pan', () => {
 });
 
 test('the black hole jets move with the pan (anchored on the hole, no stray line)', () => {
-  const pan = { x: -300, y: 40 }, c = shot(pan), s = skyLayer(W, H, 57).px.px, cx = W / 2 + pan.x, cy = H / 2 + pan.y;
+  const pan = { x: -300, y: 40 }, c = shot(pan), s = skyLayer(W, H, 57, { band: false }).px.px, cx = W / 2 + pan.x, cy = H / 2 + pan.y;
   const lit = x => { let m = 0; for (let y = Math.round(cy) - 150; y < Math.round(cy) - 15; y++) for (let d = -8; d <= 8; d++) if (c.px[y * W + Math.round(x) + d] !== s[y * W + Math.round(x) + d]) m++; return m };
   assert.ok(lit(cx) > 60, 'jet above the hole');
   // the unpanned centre column (where a stray, un-panned jet would sit) is only sky and a few stars there

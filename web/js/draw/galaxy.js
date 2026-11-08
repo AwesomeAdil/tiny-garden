@@ -49,7 +49,7 @@ function neighbourSprite(nb, sc) {
 // Per-pixel tables, built once per size. Only pixels the disc or bulge can reach ("active") are recomputed
 // as it turns; every other pixel stays space, with a seeded starfield like the sky's.
 export function galInit(W = W0, H = H0, sc = discScale(W, H)) {
-  const n = W * H, G = { W, H, img: new ImageData(W, H), cx: W / 2, cy: H / 2, sc, k: sc / 150.4, pan: { x: 0, y: 0 }, key: null, tw: [], base: new Uint32Array(W * H), sky: skyLayer(W, H, 57) }; G.px = new Uint32Array(G.img.data.buffer);
+  const n = W * H, G = { W, H, img: new ImageData(W, H), cx: W / 2, cy: H / 2, sc, k: sc / 150.4, pan: { x: 0, y: 0 }, key: null, tw: [], base: new Uint32Array(W * H), sky: skyLayer(W, H, 57, { band: false }) }; G.px = new Uint32Array(G.img.data.buffer);
   const sr = Math.sin(GO.roll), cr = Math.cos(GO.roll), act = [];
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const dx = (x - G.cx) / sc, dy = (y - G.cy) / sc, py = dx * sr + dy * cr, pxx = dx * cr - dy * sr, r = Math.hypot(pxx, py / GO.tilt); if (r < 1.1 || Math.hypot(pxx, py) < .4) act.push(y * W + x) }
   const m = act.length, F = () => new Float32Array(m);

@@ -4,7 +4,8 @@ import { createHash } from 'node:crypto';
 globalThis.ImageData ??= class { constructor(w, h) { this.width = w; this.height = h; this.data = new Uint8ClampedArray(w * h * 4) } };
 
 const { PixCtx } = await import('../web/js/core/pixctx.js');
-const { STY, PROPS, islandSprite, islandKey, getSprite, drawIsland, skyLayer, SPRITES, homeProp, typeStyle } = await import('../web/js/draw/kit.js');
+const { STY, PROPS, islandSprite, islandKey, getSprite, drawIsland, skyLayer, SPRITES, homeProp, typeStyle, sn } = await import('../web/js/draw/kit.js');
+const { NN } = await import('../web/js/core/pixel.js');
 const { ISL_LAVA } = await import('../web/js/sim/content.js');
 const { DEF_OCEAN } = await import('../web/js/sim/content.js');
 const { PIER_PICKS, MID_PICKS, GIFTS } = await import('../web/js/sim/picks.js');
@@ -102,20 +103,65 @@ test('PixCtx: transparent start, proper over, and blit', () => {
   assert.deepEqual([...o.d.slice(8, 12)], [0, 0, 255, 255]); // transparent skipped
 });
 
-test('skyLayer is cached and has soft stardust', () => {
+// The Milky band sky (variant C): band centre line is u-axis through (W/2, .46H) at angle -.30, half-width .36H.
+const lum = (L, x, y) => { const i = (y * L.img.width + x) * 4, d = L.img.data; return d[i] + d[i + 1] + d[i + 2] };
+// mean brightness of the points at offset v across the band (rotated frame), over u in [-W/3, W/3]
+const across = (L, W, H, v) => { const a = -.30, ca = Math.cos(a), sa = Math.sin(a); let s = 0, n = 0;
+  for (let u = -W / 3; u <= W / 3; u += 1) { const x = Math.round(W / 2 + u * ca - v * sa), y = Math.round(H * .46 + u * sa + v * ca); if (x >= 0 && y >= 0 && x < W && y < H) { s += lum(L, x, y); n++ } }
+  return s / n };
+// a thin strip's mean over a few offsets
+const strip = (L, W, H, v0, v1) => { let s = 0, n = 0; for (let v = v0; v <= v1; v += 1) { s += across(L, W, H, v); n++ } return s / n };
+
+test('skyLayer is cached, has a real alpha and twinkles', () => {
   const a = skyLayer(160, 90, 7), b = skyLayer(160, 90, 7);
   assert.equal(a, b);
   assert.ok(a.img && a.tw.length > 0);
-  const c = new PixCtx(160, 90); c.putImageData(a.img, 0, 0);
-  assert.equal(c.d[3], 255);
-  // the gradient has 4 colours and the fixed stars 2; stardust adds faint tints, none far from the sky's own colours
-  const base = ['#101119', '#141622', '#181a2a', '#1c1f33', '#2a2d42', '#3b3f55'].map(h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)));
-  const cols = new Set();
-  for (let i = 0; i < a.img.data.length; i += 4) {
-    const p = [a.img.data[i], a.img.data[i + 1], a.img.data[i + 2]]; cols.add(p.join());
-    assert.ok(base.some(b => b.every((v, k) => Math.abs(v - p[k]) <= 16)), `pixel ${p} is not a soft tint`);
+  assert.equal(a.img.data[3], 255);
+  assert.ok(skyLayer(160, 90, 7, { band: false }) !== a);
+});
+
+test('skyLayer is deterministic for a seed', () => {
+  const h = (W, H, seed, o) => createHash('sha1').update(skyLayer(W, H, seed, o).img.data).digest('hex');
+  const hash1 = h(300, 160, 11), tw1 = JSON.stringify(skyLayer(300, 160, 11).tw);
+  // a different size evicts nothing we rely on; rebuild by pushing other skies through the 6-entry cache
+  for (let s = 100; s < 108; s++) skyLayer(64, 48, s);
+  assert.equal(h(300, 160, 11), hash1);
+  assert.equal(JSON.stringify(skyLayer(300, 160, 11).tw), tw1);
+  assert.notEqual(h(300, 160, 12), hash1);
+});
+
+test('skyLayer has a Milky band: brighter along its centre line than away from it', () => {
+  const W = 1146, H = 480, L = skyLayer(W, H, 3), hw = H * .36;
+  const band = strip(L, W, H, hw * .15, hw * .55), away = (across(L, W, H, hw * 1.4) + across(L, W, H, -hw * 1.4)) / 2; // away: beyond the band's edge
+  assert.ok(band > away + 6, `band ${band} vs sky away from it ${away}`);
+  const flat = skyLayer(W, H, 3, { band: false });
+  assert.ok(across(L, W, H, hw * .35) > across(flat, W, H, hw * .35) + 8, 'band tint is measurable over the bare gradient');
+});
+
+test('skyLayer has a dust rift darker than the band either side of it', () => {
+  const W = 1146, H = 480, L = skyLayer(W, H, 3), hw = H * .36, an = -.30, ca = Math.cos(an), sa = Math.sin(an);
+  let rift = 0, side = 0, nr = 0, ns = 0;
+  for (let u = -W / 3; u <= W / 3; u += 1) {
+    const c = sn(u * .006, 5) * hw * .22 + hw * .08 * (NN(u * .5, 77) - .5) * 4; // the rift's centre across the band at u (as the band builds it)
+    const at = v => { const x = Math.round(W / 2 + u * ca - (c + v) * sa), y = Math.round(H * .46 + u * sa + (c + v) * ca); return lum(L, x, y) };
+    for (let v = -2; v <= 2; v++) { rift += at(v); nr++ }
+    for (let v = hw * .22; v <= hw * .3; v++) { side += at(v) + at(-v); ns += 2 }
   }
-  assert.ok(cols.size > 6, `only ${cols.size} sky colours: no stardust`);
+  assert.ok(side / ns > rift / nr + 4, `rift ${(rift / nr).toFixed(1)} should be darker than its sides ${(side / ns).toFixed(1)}`);
+});
+
+test('skyLayer keeps the island zone dim enough to read islands against', () => {
+  const W = 1146, H = 480, L = skyLayer(W, H, 3), cap = 150; // an island's darkest rock is ~#3b3f55 (sum 197): the sky stays under a mean of cap
+  // islands sit in the middle rows of the view; check the mean and the share of bright pixels there
+  let sum = 0, bright = 0, n = 0;
+  for (let y = Math.round(H * .3); y < Math.round(H * .8); y++) for (let x = Math.round(W * .1); x < Math.round(W * .9); x++) { const l = lum(L, x, y); sum += l; n++; if (l > 330) bright++ }
+  assert.ok(sum / n < cap, `mean sky brightness ${sum / n} over the island zone`);
+  assert.ok(bright / n < .01, `${(bright / n * 100).toFixed(1)}% of island-zone pixels are bright`);
+});
+
+test('skyLayer builds in under 100 ms at 1146x480', () => {
+  const t = performance.now(); skyLayer(1146, 480, 4242); const ms = performance.now() - t;
+  assert.ok(ms < 100, `built in ${ms.toFixed(0)} ms`);
 });
 
 // The centrepiece region: the columns around the home prop, above the top's tufts (rows < oy - 3).
