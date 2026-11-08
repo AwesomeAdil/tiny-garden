@@ -87,3 +87,10 @@ test('one name and one gift helper: towns, renamed islands and named huts', asyn
   assert.equal(giftName({ kind: 'hut', name: 'MIRA' }), "MIRA's hut");
   assert.equal(giftName({ kind: 'coral' }), 'Coral');
 });
+
+test('a renamed island shows its new name on its tag', () => {
+  const app = mkApp(); app.game.ui.view = 'planet';
+  const n = app.w.S.nodes.find(q => q.kind === 'island'); n.name = 'PIPPIN';
+  renderTags(app);
+  assert.ok(app.els.tags.innerHTML.includes('PIPPIN'));
+});

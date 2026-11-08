@@ -51,7 +51,7 @@ export function planetView(c, game, w, t, W = VW, H = VH) {
 
 // One island's sprite, zoomed: the static sprite blitted at z, and its animated bits (falls, fireflies, lamp flicker)
 // drawn by drawIsland into a transparent layer at native size each frame and zoomed the same.
-const LAYERS = new WeakMap(), M = 24;
+const LAYERS = new WeakMap(), SCRATCH = new Map(), M = 24;
 export function drawIslandZoom(c, I, x, y, t, z) {
   x = Math.round(x); y = Math.round(y);
   let L = LAYERS.get(I); if (!L) { L = { tmp: new PixCtx(I.w + 2 * M, I.h + 2 * M, { transparent: true }), stub: { ...I, px: new PixCtx(1, 1, { transparent: true }) } }; LAYERS.set(I, L) }
@@ -92,7 +92,10 @@ export function dawn(c, t, W = VW, H = VH, rt = t) {
 // horizon under the stars. Goods are never drawn.
 export function islandView(c, w, n, t, W = VW, H = VH) {
   const B = remember(['isl', W, H, sky2(w, 89), CLOSE.style].join(), () => horizonBack(W, H, sky2(w, 89), CLOSE.style));
-  c.putImageData(B.px.img, 0, 0); twinkle(c, B.tw, t);
+  // The zoom needs PixCtx's blitZoom, which a canvas context lacks: compose in a scratch PixCtx, then put it on c.
+  const key = W + 'x' + H, S = SCRATCH.get(key) || SCRATCH.set(key, new PixCtx(W, H)).get(key);
+  S.px.set(B.px.px); twinkle(S, B.tw, t);
   const I = getSprite(w, n, 'near', worldView(W, H).k), z = zoomFor(I.w, I.h, W, H), x = Math.round(W / 2), y = Math.round(H * .46 - I.h * z / 2 + I.oy * z) + isleBob(n, t) * z;
-  drawIslandZoom(c, I, x, y, t, z);
+  drawIslandZoom(S, I, x, y, t, z);
+  c.putImageData(S.img, 0, 0);
 }

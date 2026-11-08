@@ -10,6 +10,7 @@ import { islandHW, depthFor } from '../draw/kit.js';
 import { HUB_DEPTH } from '../draw/city.js';
 import { sysSpots } from '../draw/system.js';
 import { GSYS, gpos, galShownRot, galAbove } from '../draw/galaxy.js';
+import { nameOf } from './util.js';
 import { artMask, placeNames, namesOn } from './names.js';
 
 // World point (x, y) in % of the canvas the city is drawn on (app.art; the world itself before the first layout).
@@ -24,7 +25,7 @@ function tagsHTML(app) {
   const w = app.w, ISL = w.def.isl, hub = w.hub, a = app.art, k = worldView(a && a.w || W, a && a.h || H).k;
   // under each island's rock: its name, and a star per stage past the first
   let h = isl(w).map(n => { const s = ISL[n.id], below = (depthFor(Math.max(4, Math.round(islandHW(n) * k))) + 4) / k;
-    return `<div class="ntag" style="${placeAt(app, n.x, n.y + below)}"><span style="color:${s.col}">${n.name || s.name}${n.stage > 1 ? ' <span class="lv">' + uico('star').repeat(n.stage - 1) + '</span>' : ''}</span></div>` }).join('');
+    return `<div class="ntag" style="${placeAt(app, n.x, n.y + below)}"><span style="color:${s.col}">${nameOf(w, n)}${n.stage > 1 ? ' <span class="lv">' + uico('star').repeat(n.stage - 1) + '</span>' : ''}</span></div>` }).join('');
   h += `<div class="ntag" style="${placeAt(app, hub.x, hub.y + (HUB_DEPTH + 9) / k)}"><span style="color:#8aadf4">TOWN${hub.stage > 1 ? ' <span class="lv">' + uico('star').repeat(hub.stage - 1) + '</span>' : ''}</span></div>`;
   return h;
 }

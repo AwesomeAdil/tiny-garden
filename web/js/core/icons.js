@@ -11,6 +11,7 @@ tools:['............','.vv.........','vVv.........','vvvv........','..vvv.......
 power:['......cc....','.....cc.....','....cc......','...ccc......','..cccccc....','.....cc.....','....cc......','...CC.......','..CC........','.CC.........','............','............'],
 panels:['............','.PPPPPPPPPP.','.PppppPpppP.','.PpwppPpwpP.','.PppppPpppP.','.PPPPPPPPPP.','.PppppPpppP.','.PpwppPpwpP.','.PppppPpppP.','.PPPPPPPPPP.','.....PP.....','....PPPP....'],
 growth:['............','.....ee.....','..eee.ee.ee.','.eEeee.eeEe.','..eeEe.eEe..','.....e.e....','......e.....','......E.....','......E.....','...mmmmmm...','....mmmm....','............'],
+stone:['............','....gggg....','..ggGGGgg...','.gGGGGggggk.','.gGGggggggk.','gGgggggkgggk','gggkgggggggk','gggggggggkkk','.gggggggkkk.','.kggggkkkk..','..kkkkkkk...','............'],
 water:['.....b......','.....b......','....bbb.....','....bBb.....','...bBBbb....','..bbBbbbb...','..bBbbbbb...','..bbbbbbn...','..bbbbbnn...','...bbnnn....','....nnn.....']};
 
 // Tool and view icons (UPAL keys: PAL plus h/H wood and s base).
@@ -28,6 +29,7 @@ dice:['............','.wwwwwwwwG..','.wBBBBBBBG..','.wBkBBBkBG..','.wBBBBBBBG..'
 cable:['............','bb.......bb.','bBb.....bBb.','bbb..g..bbb.','bBbggGggbBb.','bbb..G..bbb.','bBb..G..bBb.','bb...g...bb.','.....y......','....y.y.....','...y...y....','............'],
 dock:['.....GG.....','....G..G....','.....GG.....','..GGGGGGGG..','.....GG.....','.....GG.....','.....GG.....','.G...GG...G.','.GG..GG..GG.','..GG.GG.GG..','...GGGGGG...','............'],
 walker:['.......pp...','.......pp...','.....bbbb...','....b.bb.b..','.....bbb....','.c...bbb....','.....h.h....','.cc.h...h...','...h.....h..','..h.......h.','............','............'],
+arrow:['............','.......G....','.......GG...','.GGGGGGGGG..','.GGGGGGGGGG.','.GGGGGGGGG..','.......GG...','.......G....','............','............','............','............'],
 star:['............','.....y......','.....y......','....yYy.....','yyyyYwYyyyy.','.yyYYYYYyy..','..yYYYYYy...','..yYy.yYy...','.yy.....yy..','.y.......y..','............','............'],
 close:['...GGGG.....','..GcBccg....','.GcBcccCg...','.GceeccCg...','.GEEEEcCg...','.GcgkcCCg...','..gCkCCg....','...ggggh....','.......hh...','........hH..','.........hh.','............'],
 patch:['.......GG.G.','......GG..G.','......GG.GG.','.....GGGGG..','....GGG.....','...GGG......','..GGG.......','.GGG........','GGG.........','GG..........','............','............']};

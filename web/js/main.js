@@ -7,7 +7,7 @@ import { serialize } from './sim/save.js';
 import { trialLoad } from './boot.js';
 import { skip } from './sim/dev.js';
 import { startClock, clockStep, clockSavedAt } from './sim/clock.js';
-import { node } from './sim/world.js';
+import { node, tie } from './sim/world.js';
 import { sysPlanets } from './sim/system.js';
 import { W, H } from './sim/content.js';
 import { viewScale, worldView } from './core/pixel.js';
@@ -254,8 +254,11 @@ else {
   if (q.get('names') === '0') game.ui.names = false;
   if (q.has('inset')) topInset = Math.max(0, +q.get('inset') || 0);
   if (q.has('n')) { const w = game.worlds[game.ui.world]; if (node(w, q.get('n'))) w.S.sel = { t: 'node', id: q.get('n') } }
+  // Dev (shots): rope=a:b ties two nodes and selects that bridge; rename=1 opens the name field on the selection.
+  if (q.has('rope')) { const w = game.worlds[game.ui.world], [a, b] = q.get('rope').split(':'), A = node(w, a), B = node(w, b); if (A && B && A !== B) { const r = tie(w, A, B); if (r) w.S.sel = { t: 'rope', id: r.id } } }
   game.savedAt = Date.now();
   start(game, q.get('mode') === 'wallpaper' ? 'wallpaper' : 'play', Date.now());
+  if (q.get('rename') === '1') { app.renaming = app.w.S.sel.id; app.panelKey = ''; renderPanel(app) }
   // Dev: gifts=N puts N gifts in the tray; card=<islandId>:<spot> opens the pick card (for shots).
   if (q.has('gifts')) { for (let i = 0; i < Math.min(3, +q.get('gifts') || 0); i++) game.gifts.push({ id: 900 + i, kind: ['coral', 'hut', 'banner'][i], variant: i, ...(i === 1 ? { name: 'MIRA' } : {}) }); renderTray(app) }
   if (q.has('card')) { const [id, i] = q.get('card').split(':'), w = app.w, n = node(w, id); if (n) openCard(app, w, n, +i) }

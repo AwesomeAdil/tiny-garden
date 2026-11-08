@@ -1,6 +1,11 @@
 // The guide line (what to do next), the hint line (what just happened) and sim events. Ported from page 38.
-// The city's teaching lines here are a stand-in: Task 13 writes the v2 guide (stalls, picks, the town and cable).
 import { GSYS } from '../draw/galaxy.js';
+import { stalls } from '../sim/flow.js';
+import { isl, node } from '../sim/world.js';
+import { SPOTS } from '../sim/picks.js';
+import { spotOpen } from '../sim/grow.js';
+import { NAME } from '../core/palette.js';
+import { nameOf } from './util.js';
 
 const home = game => game.worlds[0];
 const nextName = (game, w) => { const n = w.def.next && game.worlds.find(x => x.def.key === w.def.next); return n ? n.def.name : null };
@@ -9,8 +14,23 @@ export function guideText(app) {
   const game = app.game, v = game.ui.view, w = app.w, S = w.S, H0 = home(game);
   if (v === 'galaxy') return `<b>The galaxy.</b> Your home star, <b>${GSYS[0].name}</b>, is the yellow point in one arm. Click it and press <b>Zoom in</b>, or double-click it. The other stars come later. <b>N</b> hides or shows the names.`;
   if (v === 'system') return game.cables.length ? '<b>The solar system.</b> Click a planet to see it, then <b>Zoom in</b>. <b>N</b> hides or shows the names.' : `<b>The solar system.</b> The first long cable from ${H0.def.name}'s town reaches ${nextName(game, H0) || 'the next planet'}.`;
-  if (!S.ropes.length) return '<b>Next:</b> pick <b>Rope</b> and drag from the town or an island to another one inside the dotted circle.';
-  return '<b>Next:</b> tie bridges so every island gets what it needs. Click a bridge to make it one way. Click a glowing spot to choose what grows there.';
+  return cityGuide(app, w);
+}
+
+// The city's lessons, in order, each until it has been done once; then the first stall; then a general nudge.
+// A lesson counts as done by what the world shows (a bridge exists, goods have arrived, a spot was chosen), so a
+// loaded save never re-teaches what it has already got past.
+function cityGuide(app, w) {
+  const S = w.S, I = isl(w);
+  const delivered = S.nodes.some(n => n.stage > 1 || Object.values(n.paid).some(v => v > 0));
+  if (!S.ropes.length && !delivered) { const h = node(w, 'home'); return `Drag from <b>${h ? nameOf(w, h).toUpperCase() : 'the town'}</b> to an island to tie a bridge.` }
+  if (!delivered) return 'Water, light and stone travel to islands that need them.';
+  const grown = I.find(n => SPOTS.some(s => s.i < 4 && spotOpen(n, s.i) && !n.spots[s.i]));
+  if (grown) return `${nameOf(w, grown).toUpperCase()} grew! Click a glowing spot to choose what grows there.`;
+  if (S.ropes.length && !app.tapped && !S.ropes.some(r => r.way !== 0) && !I.some(n => n.stage >= 3)) return 'Tap a bridge to make it one-way.';
+  const st = stalls(w)[0];
+  if (st) return `${nameOf(w, node(w, st.id)).toUpperCase()} needs ${NAME[st.k].toLowerCase()}, but nothing it can reach makes it.`;
+  return 'Tie bridges so every island gets what it needs. Tap a bridge to make it one-way.';
 }
 
 export function renderGuide(app) { const el = app.els.guide, v = guideText(app); if (el.dataset.last !== v) { el.dataset.last = v; el.innerHTML = v } }
@@ -31,7 +51,12 @@ export function idleHint(app) {
 }
 
 // Sim events go to the hint line in play mode; in wallpaper mode nobody is reading, so they're dropped.
+export const eventLine = kind => ({ whale: 'A space whale is passing!', traveller: 'A traveller is passing by!', aurora: 'An aurora is lighting the sky!' }[kind]);
+
 export function drainEvents(app) {
+  // A visit starts when game.ev.active appears: one line per visit, however long it lasts.
+  const a = app.game.ev && app.game.ev.active, id = a ? `${a.kind}@${a.t0}` : null;
+  if (id !== app.seenEv) { app.seenEv = id; if (a && app.mode === 'play') say(app, eventLine(a.kind)) }
   app.game.worlds.forEach(w => {
     if (!w.events.length) return;
     const evs = w.events.splice(0);

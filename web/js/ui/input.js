@@ -77,7 +77,7 @@ export function constrain(w, n, p) {
   return { x, y, strain: strain || Math.hypot(p.x - x, p.y - y) > 3 };
 }
 
-const sel = (app, s) => { app.w.S.sel = s; app.panelKey = ''; renderPanel(app) };
+const sel = (app, s) => { app.w.S.sel = s; if (s.t === 'rope') app.tapped = true; app.renaming = null; app.panelKey = ''; renderPanel(app) };
 const tell = app => (m, warn) => say(app, m, warn);
 
 // A click on an open spot: place the armed gift there, or open the pick card for it.
