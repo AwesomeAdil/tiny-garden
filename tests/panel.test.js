@@ -71,6 +71,15 @@ test('bridge panel shows its two ends and its way', () => {
   assert.equal(arrows(h), 'LR', 'both ways: a left and a right arrow');
   r.way = 1; assert.equal(arrows(panelHTML(app)), 'R', 'a to b: points right');
   r.way = -1; assert.equal(arrows(panelHTML(app)), 'L', 'b to a: points left');
+  // the other way round: the bridge was tied from the island to the town, so a is the island and b the town.
+  // The arrow follows the sender (a) to the receiver (b), whatever the layout.
+  const g2 = newGame(3), w3 = g2.worlds[0], i3 = islands(w3)[0], r3 = tie(w3, i3, w3.hub); r3.way = 1;
+  const app3 = mkApp(); app3.game = g2; w3.S.sel = { t: 'rope', id: r3.id };
+  const h3 = panelHTML(app3), at = (re) => h3.search(re);
+  assert.equal(arrows(h3), 'R');
+  assert.ok(at(new RegExp('<b>' + w3.def.isl[i3.id].name + '</b>')) < at(/class="ar"/) && at(/class="ar"/) < at(/<b>The town<\/b>/), 'island, arrow, town');
+  r3.way = -1; const h4 = panelHTML(app3);
+  assert.equal(arrows(h4), 'L');
 });
 
 test('town panel shows the cable only once it is open', () => {
@@ -145,11 +154,13 @@ test('lesson 4 completes on a stage-3 island and on a one-way bridge, and surviv
   const open = base(); assert.match(guideText(open.app), new RegExp(lesson));
   const s3 = base(); s3.a.stage = 3; s3.a.spots[0] = s3.a.spots[1] = s3.a.spots[2] = { pick: 'x' };
   assert.doesNotMatch(guideText(s3.app), new RegExp(lesson));
+  assert.doesNotMatch(guideText(s3.app), /grew!/, 'every open spot is filled, so the lesson is skipped for the right reason');
+  assert.match(guideText(s3.app), /needs (water|light|stone), but nothing it can reach makes it\.|^Tie bridges/, 'the line after lesson 4');
   const ow = base(); ow.r.way = 1; assert.doesNotMatch(guideText(ow.app), new RegExp(lesson));
   // done once stays done: undo the cause, round-trip a save, and it does not come back
   ow.r.way = 0;
   const back = deserialize(JSON.parse(JSON.stringify(serialize(ow.app.game, 1))));
-  const app2 = { ...mkApp(), game: back };
+  const app2 = mkApp(); app2.game = back;
   assert.doesNotMatch(guideText(app2), new RegExp(lesson));
   // an older save with no lessons loads with a default
   const old = JSON.parse(JSON.stringify(serialize(newGame(3), 1))); delete old.ui.lessons;
