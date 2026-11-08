@@ -6,7 +6,7 @@
 import { TAU, SP, P, B8, mix, rgb, u32, rngf, clamp } from '../core/pixel.js';
 import { COL, SURF, KD, R_CORE, R_DUSK, ORBIT } from '../core/palette.js';
 import { sysPlanets } from '../sim/system.js';
-import { skyLayer, twinkle, A } from './kit.js';
+import { skyLayer, twinkle, A, oceanSurf } from './kit.js';
 
 const SKY_BG = '#161722', GT = game => game.worlds[0].S.time;
 // The plane: ratio .34, rolled -0.1 rad. Orbit scale 1.6 at 688x288, fitted to the canvas otherwise.
@@ -47,8 +47,9 @@ const disc = (c, x, y, R, col) => { for (let j = -R; j <= R; j++) { const w = Ma
 
 // A planet lit from the sun at (sx, sy): day, a dithered terminator and night, a white highlight, and an
 // optional lit rim. dim mixes it toward space (unsettled or far side); lift brightens a dark world's far night.
-function planetD(c, p, x, y, r, t, sx, sy, dim, lift) {
-  const f = SURF[p.surfKey], dx = sx - x, dy = sy - y, L0 = Math.hypot(dx, dy) || 1, lz = .36, k = Math.sqrt(1 - lz * lz), lx = dx / L0 * k, ly = dy / L0 * k, night = .84 - lift;
+// TIDE wears the game's own world map (kit.js oceanSurf), the same continents as the city's horizon.
+function planetD(c, p, x, y, r, t, sx, sy, dim, lift, seed = 0) {
+  const f = p.surfKey === 'ocean' ? oceanSurf(seed) : SURF[p.surfKey], dx = sx - x, dy = sy - y, L0 = Math.hypot(dx, dy) || 1, lz = .36, k = Math.sqrt(1 - lz * lz), lx = dx / L0 * k, ly = dy / L0 * k, night = .84 - lift;
   x = Math.round(x); y = Math.round(y);
   for (let j = -r; j <= r; j++) for (let i = -r; i <= r; i++) {
     if (i * i + j * j > (r + .3) * (r + .3)) continue;
@@ -126,7 +127,7 @@ export function drawSystem(ctx, game, t, sel, W = 688, H = 288) {
   const drawP = p => {
     const q = sysXY(v, p, T), on = p.w && p.w.started, fr = isFar(p, T), r = radius(v, p), lift = fr && p.lift ? p.lift : 0;
     const dim = 1 - (1 - (on ? 0 : .38)) * (1 - (fr && !lift ? .25 : 0));
-    planetD(c, p, q[0], q[1], r, t, sx, sy, dim, lift);
+    planetD(c, p, q[0], q[1], r, t, sx, sy, dim, lift, game.seed);
     // Play only: one small chevron above the selected planet.
     if (sel === p.name) { const X = Math.round(q[0]), Y = Math.round(q[1]) - r - 3; P(c, KD.mauve, X, Y); P(c, KD.mauve, X - 1, Y - 1); P(c, KD.mauve, X + 1, Y - 1) }
   };

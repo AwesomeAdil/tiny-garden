@@ -3,7 +3,7 @@
 // or on PixCtx. Island sprites are pre-rendered into a transparent PixCtx and blitted each frame; only the
 // animated bits (falls, smoke, lamp flicker, fireflies, willows, banners) are drawn live.
 // The mockup's globals are gone: haze is a per-call wrapper (hazed) and every random stream is seeded per call.
-import { P, mix, rngf, rgb, u32, B8, NN } from '../core/pixel.js';
+import { P, mix, rngf, rgb, u32, B8, NN, NZ } from '../core/pixel.js';
 import { PixCtx } from '../core/pixctx.js';
 import { ISL_OCEAN, ISL_LAVA, ISLAND_HW } from '../sim/content.js';
 import { bandOf } from '../sim/world.js';
@@ -87,20 +87,100 @@ export function drawSky(c, L, t) { c.putImageData(L.img, 0, 0); twinkle(c, L.tw,
 // The twinkling stars of a sky layer (a list of {x, y, f, p, big}), drawn over whatever is there.
 export function twinkle(c, tw, t) { for (const s of tw) { const b = Math.sin(t * s.f + s.p); if (b > -.2) P(c, b > .6 ? '#e3eafc' : '#8087a2', s.x, s.y); if (s.big && b > .75) { A(c, '#8087a2', .7, s.x - 1, s.y); A(c, '#8087a2', .7, s.x + 1, s.y); A(c, '#8087a2', .7, s.x, s.y - 1); A(c, '#8087a2', .7, s.x, s.y + 1) } } }
 
-// A big planet disc with land, clouds, a lit rim and a dithered night side (TIDE on the horizon).
-// o.rim: the lit rim's width in pixels (default the mockup's 4.5% of r); o.map(x, y) -> [X, Y]: where the
-// land and clouds are looked up (default [x*fx, y*fy]), so a huge horizon curve can lay them along its surface.
+// ---------- TIDE: an earth-like world per game seed (page 50, variant B) ----------
+// A world map of MW x MH map px (x wraps; y runs pole to pole) from the seed: domain-warped continents with a sea
+// level set so about 40% is land, scattered islands, ice caps, cloud bands, deep and shallow ocean, deserts,
+// forests and mountains. The city's horizon, the close-ups' dawn planet and the system view's sphere all read it.
+const nb = (u, v) => {
+  const x0 = Math.floor(u), y0 = Math.floor(v), tx = u - x0, ty = v - y0, X0 = x0 & 255, X1 = (x0 + 1) & 255, Y0 = (y0 & 255) << 8, Y1 = ((y0 + 1) & 255) << 8;
+  return (NZ[Y0 | X0] * (1 - tx) + NZ[Y0 | X1] * tx) * (1 - ty) + (NZ[Y1 | X0] * (1 - tx) + NZ[Y1 | X1] * tx) * ty;
+};
+const hash = s => { let h = (s | 0) * 2654435761 >>> 0; h ^= h >>> 15; h = Math.imul(h, 2246822519) >>> 0; h ^= h >>> 13; return h >>> 0 };
+const rnd = (s, k) => hash(s * 31 + k * 977) / 4294967296;
+export const MW = 1024, MH = 512;
+const WORLDS = new Map();
+// The world of one seed: {field(X, Y) -> elevation (> 0 land), cityX (the longitude the city faces), ...}.
+export function tideWorld(seed) {
+  seed |= 0; let Wd = WORLDS.get(seed); if (Wd) return Wd;
+  const ox = rnd(seed, 1) * 256, oy = rnd(seed, 2) * 256, wx = rnd(seed, 3) * 256, wy = rnd(seed, 4) * 256, ix = rnd(seed, 5) * 256, iy = rnd(seed, 6) * 256;
+  const raw = (X, Y) => {
+    const lat = Y / MH, wX = (nb(X / 4 + wx, Y / 4 + wy) - .5) * 140, wY = (nb(X / 4 + wy, Y / 4 + wx + 40) - .5) * 140; // domain warp: bendy coasts
+    const u = (X + wX) / 4 + ox, v = (Y + wY) / 4 + oy;
+    let c = nb(u, v) * .72 + nb(u * 2 + 17, v * 2 + 5) * .28;
+    c -= Math.pow(Math.abs(lat - .5) * 2, 3) * .07; // a little less land at the poles
+    const isl = nb(X / 2 + ix, Y / 2 + iy); // small islands: sparse high-frequency peaks
+    return Math.max(c, isl > .72 ? .5 + (isl - .72) * 1.6 + (c - .5) * .4 - .05 : 0);
+  };
+  const N = 96, vals = [];
+  for (let j = 0; j < N / 2; j++) for (let i = 0; i < N; i++) vals.push(raw(i / N * MW, (j + .5) / (N / 2) * MH));
+  vals.sort((a, b) => a - b);
+  const sea = vals[Math.floor(vals.length * .6)], field = (X, Y) => raw(((X % MW) + MW) % MW, Y) - sea;
+  // The city's longitude: of 10 candidates, the strip with land near 40% and the most coast.
+  let best = 0, bs = -1;
+  for (let k = 0; k < 10; k++) {
+    const X0 = rnd(seed, 20 + k) * MW; let lf = 0, edges = 0, prev = 0;
+    for (let i = 0; i < 80; i++) for (let j = 0; j < 8; j++) { const l = field(X0 + (i / 80 - .5) * 1260, 60 + j * 20) > 0 ? 1 : 0; lf += l; if (j === 3) { if (i && l !== prev) edges++; prev = l } }
+    const sc = -Math.abs(lf / 640 - .4) * 4 + Math.min(edges, 6) * .15;
+    if (sc > bs) { bs = sc; best = X0 }
+  }
+  Wd = { seed, field, sea, cityX: best, ox, oy, wx, wy, ix, iy, flip: rnd(seed, 9) < .5 };
+  WORLDS.set(seed, Wd); if (WORLDS.size > 8) WORLDS.delete(WORLDS.keys().next().value);
+  return Wd;
+}
+const OC = { deep: '#3b5aa6', deep2: '#4d6fc2', mid: '#5a7fd0', shelf: '#6f95e3', shallow: '#8aadf4' };
+const LAND = ['#a6da95', '#8fcf8c', '#86c487', '#6aa57a', '#5f9a68', '#4f8a5c'];
+export const TIDE_SAND = '#eed49f';
+const SAND2 = '#e3c88c', ICE = '#e6eaf8', ICE2 = '#c9dafb', ROCK = '#7f849c', ROCK2 = '#a5adcb', CLOUD = '#e3eafc';
+const D8M = [0, 32, 8, 40, 2, 34, 10, 42, 48, 16, 56, 24, 50, 18, 58, 26, 12, 44, 4, 36, 14, 46, 6, 38, 60, 28, 52, 20, 62, 30, 54, 22, 3, 35, 11, 43, 1, 33, 9, 41, 51, 19, 59, 27, 49, 17, 57, 25, 15, 47, 7, 39, 13, 45, 5, 37, 63, 31, 55, 23, 61, 29, 53, 21];
+const D8 = (x, y) => (D8M[(y & 7) * 8 + (x & 7)] + .5) / 64;
+const isIce = col => col === ICE || col === ICE2;
+// The colour of map point (X, Y) with elevation e, dithered at canvas pixel (x, y); coast (a land point next to sea)
+// is sand. No clouds (tideCloud).
+export function tideSurface(Wd, X, Y, e, x, y, coast = false) {
+  const lat = Y / MH, d = D8(x, y), iceLine = .15 + (nb(X + 40, 9) - .5) * .09, pole = Math.min(lat, 1 - lat);
+  if (pole < iceLine) { const depth = (iceLine - pole) / .08; return depth > .5 || depth + d * .5 > .45 ? ICE : ICE2 }
+  if (e <= 0) { const k = -e; return k < .035 + d * .02 ? OC.shallow : k < .09 + d * .03 ? OC.shelf : k < .2 + d * .05 ? OC.mid : k < .3 + d * .06 ? OC.deep2 : OC.deep }
+  if (coast) return TIDE_SAND;
+  const hi = nb(X + Wd.ox * 3, Y + Wd.oy * 3), li = Math.max(0, Math.min(LAND.length - 1, Math.floor(e * 15 + d * .9 - .3)));
+  const dry = nb(X / 4 + Wd.wx, Y / 4 + Wd.ix);
+  if (e < .22 && dry > .78 && lat > .22 && lat < .8) return d < .5 ? TIDE_SAND : SAND2; // deserts
+  if (e > .17 + (hi - .5) * .12 && hi > .55) return e > .27 && hi > .66 + d * .04 ? (d < .35 ? ROCK2 : ROCK) : LAND[5]; // mountains
+  if (e > .06 && hi < .42 && d < .55) return LAND[4]; // forest speckle
+  return LAND[Math.min(li, 3)];
+}
+// Cloud cover at map point (X, Y), 0..1 (bands stretched along x); over th it is cloud.
+export const tideCloud = (Wd, X, Y) => nb(X / 4 + Wd.wy, Y / .45 + Wd.wx) * .65 + nb(X / 2 + Wd.ix, Y / .4 + Wd.iy) * .35 + Math.sin(Y / MH * 18 + Wd.ox) * .05;
+export function tideColour(Wd, X, Y, e, x, y, coast) {
+  let col = tideSurface(Wd, X, Y, e, x, y, coast);
+  const cl = tideCloud(Wd, X, Y), th = .66 - Math.sin(Y * .09 + Wd.ox) * .02;
+  if (cl > th) { const s = (cl - th) / .09; if (s > .35 || D8(x, y) < s * 1.6) col = CLOUD; if (s > .35 && s < .5 && D8(x + 1, y) < .5) col = ICE2 }
+  return col;
+}
+// The same world on a sphere (system view): (u, v, t) -> colour, u around from the city's longitude, v pole to pole.
+export function oceanSurf(seed) {
+  const Wd = tideWorld(seed);
+  return (u, v) => { const X = u * MW + Wd.cityX, Y = v * MH, e = Wd.field(X, Y); let col = tideSurface(Wd, X, Y, e, (u * 97) | 0, (v * 97) | 0); if (tideCloud(Wd, X, Y) > .68) col = CLOUD; return col };
+}
+
+// A big planet disc: TIDE's world for o.seed laid along the curve (foreshortened below the horizon), a 1 px sand
+// coast, clouds, a lit rim (o.rim px wide, default 4.5% of r), a thin atmosphere halo and a dithered night side.
 export function planetLayer(c, W, H, cx, cy, r, fx = 1, fy = 1, o = {}) {
-  const rimV = o.rim ? 1 - o.rim / r : .955;
-  for (let y = Math.max(0, Math.floor(cy - r - 3)); y < H; y++) for (let x = 0; x < W; x++) {
+  const Wd = tideWorld(o.seed | 0), rimV = o.rim ? 1 - o.rim / r : .955, y0 = Math.max(0, Math.floor(cy - r - 3)), RH = H - y0;
+  if (RH <= 0) return;
+  const E = new Float32Array(W * RH).fill(9), XX = new Float32Array(W * RH), YY = new Float32Array(W * RH);
+  for (let y = y0; y < H; y++) for (let x = 0; x < W; x++) {
+    const dx = x - cx, dy = y - cy; if (dx * dx + dy * dy > r * r) continue;
+    const sf = cy - Math.sqrt(r * r - dx * dx), dep = Math.max(0, y - sf), kx = 1 / (1 + dep / 220), i = (y - y0) * W + x;
+    const X = Wd.cityX + (Wd.flip ? -1 : 1) * dx * 1.6 * kx, Y = 30 + 190 * Math.log(1 + dep / 45);
+    XX[i] = X; YY[i] = Y; E[i] = Wd.field(X, Y);
+  }
+  const eAt = (x, y) => x < 0 || y < y0 || x >= W || y >= H ? 9 : E[(y - y0) * W + x];
+  for (let y = y0; y < H; y++) for (let x = 0; x < W; x++) {
     const dx = x - cx, dy = y - cy, d = Math.hypot(dx, dy); if (d > r + 3) continue;
     if (d > r) { const a = d > r + 2 ? .12 : d > r + 1 ? .3 : .55; if (BAY[y & 1][x & 1] < a * 1.4) P(c, '#7da2ec', x, y); continue }
-    const v = d / r, [X, Y] = o.map ? o.map(x, y) : [x * fx, y * fy];
-    const land = sn(X * .09 + 3, 2) + sn(X * .23 + Y * .35, 5) * .55 + sn(Y * .2 + X * .05, 1) * .4 > .62;
-    const cloud = sn(X * .06 + Y * .9, 9) + sn(X * .2, 3) * .3 > .78;
-    let col = land ? (sn(X * .4 + Y * .4, 7) > .3 ? '#86c487' : '#6aa57a') : '#5a7fd0';
-    if (cloud && ((x + y) & 1 || sn(X * .3, 4) > .2)) col = '#e3eafc';
-    if (v > rimV) col = mixc(col, '#c9dafb', .45);
+    const i = (y - y0) * W + x, e = E[i], coast = e > 0 && (eAt(x - 1, y) <= 0 || eAt(x + 1, y) <= 0 || eAt(x, y - 1) <= 0 || eAt(x, y + 1) <= 0);
+    let col = tideColour(Wd, XX[i], YY[i], e, x, y, coast);
+    if (d / r > rimV) col = mixc(col, '#c9dafb', .45);
     const shade = (dx / r) * 1.1 + (dy / r) * .4; if (shade > .25 + BAY[y & 1][x & 1] * .5) col = mixc(col, CR, .4); if (shade > .75 + BAY[y & 1][x & 1] * .3) col = mixc(col, CR, .35);
     P(c, col, x, y);
   }

@@ -60,14 +60,13 @@ export function townLayout(view, stage) {
 // ---------- the cached background ----------
 const BGS = new Map();
 export function cityBackground(game, w, view) {
-  const W = view.w, Hh = view.h, stage = w.hub.stage, key = [W, Hh, view.k || 1, view.ox, view.oy, w.def.key, skySeed(game, w), stage].join();
+  const W = view.w, Hh = view.h, stage = w.hub.stage, key = [W, Hh, view.k || 1, view.ox, view.oy, w.def.key, game.seed | 0, skySeed(game, w), stage].join();
   let B = BGS.get(key); if (B) return B;
   const px = new PixCtx(W, Hh), L = citySky(game, w, W, Hh), T = townLayout(view, stage), H = T.H;
   px.putImageData(L.img, 0, 0);
   sun(px, W - Math.max(20, Math.round(W * .1)), Math.max(10, Math.round(Hh * .09)));
-  // Land and clouds follow the curve, foreshortened toward the horizon (page 45's 1.1 x 3.2 there, larger nearer).
-  const PD = 40, map = (x, y) => { const d = Math.max(0, y - H.surf(x)), k = 1 / (1 + d / PD); return [H.cx + (x - H.cx) * 1.1 * k, 3.2 * PD * Math.log(1 + d / PD) + 300] };
-  planetLayer(px, W, Hh, H.cx, H.cy, H.r, 1, 1, { rim: 8, map });
+  // TIDE: this game's own continents (kit.js tideWorld), laid along the curve and foreshortened toward the horizon.
+  planetLayer(px, W, Hh, H.cx, H.cy, H.r, 1, 1, { rim: 8, seed: game.seed });
   { const I = hubSprite(); px.blit(I.px, H.cx - I.ox, T.hubTop - I.oy) }
   for (const h of T.houses) townHouse(px, h.x, h.y, h.h, h.rf);
   for (const l of T.lamps) lamp(px, l.x, l.y, S);
