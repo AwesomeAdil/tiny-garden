@@ -147,6 +147,13 @@ What the probes say:
   star elements that Core Animation runs without WebKit drawing), plus cutting the per-frame JS. That is a
   design change, left for Adil's decision (docs/FOLLOWUPS.md).
 
+### 6 fps + CSS stars (Adil's decision, 2026-11-08)
+
+Wallpaper at 6 fps (`WALL_MS = 167`). The twinkling stars are on 6 CSS-animated layers over the map
+(core/stars.js), so the canvas only changes where walkers, waterfalls and events move. In Node (city, 1/6 s
+frames) the repaint box goes from 91% of the canvas to 3.3% in a fresh game (33 of 60 frames put nothing) and
+31% mid-game. The on-device CPU run is pending: the desktop was covered (garden paused) for the whole window I had.
+
 | Date | Task | Size | Wall-clock | Source |
 |---|---|---|---|---|
 | 2026-11-08 | v2 Task 14: 10 fps cadence, dirty-box present, CPU runs, shots, docs | 3 code files, 16 shots, 4 docs | ~1.5 h agent wall-clock (about 50 min of it CPU runs, several restarted when Adil was playing) | measured |
