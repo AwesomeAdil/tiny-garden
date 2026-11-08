@@ -108,7 +108,7 @@ function drawMain(force = false) {
   // Neighbour galaxies are hidden in wallpaper mode (galPanFor gives null there, the play pan otherwise).
   if (v === 'galaxy') { if (!play) galInvalidate(c); drawGalaxy(c, t, play ? ui.galSel : null, play ? t : Math.floor(t * GAL_WALL_STEP) / GAL_WALL_STEP * GAL_WALL_SPIN, art.w, art.h, galPanFor(app.mode, game)) }
   else if (v === 'system') drawSystem(c, game, t, play ? ui.sysSel : null, art.w, art.h);
-  else if (v === 'close') { const n = closeSubject(w), rt = play ? Math.floor(t * 2) / 2 : Math.floor(t / DAWN_STEP) * DAWN_STEP; if (n) islandView(c, w, n, t, art.w, art.h, rt); else planetView(c, game, w, t, art.w, art.h) }
+  else if (v === 'close') { const n = closeSubject(w), rt = play ? Math.floor(t * 2) / 2 : Math.floor(t / DAWN_STEP) * DAWN_STEP; if (n) islandView(c, w, n, t, art.w, art.h, rt, game.seed); else planetView(c, game, w, t, art.w, art.h, rt) }
   else drawCity(c, game, w, t, app.cityView(), play ? { drag: app.drag, pointer: app.pointer, tool: app.tool, armedGift: app.armedGift, card: app.card } : null);
   art.view = v; present(app.mapCtx, c, art.prev, force);
   const p = performance.now(); if (play || p - lastSky >= SKY_MS - 4) { lastSky = p; drawSky(t) }
@@ -141,7 +141,7 @@ function drawView() {
   }
   const n = closeSubject(w);
   if (!n) { planetView(c, game, w, t); setText(els.vlbl, w.def.full + ' · the town') }
-  else { islandView(c, w, n, t); setText(els.vlbl, (n.name || w.def.isl[n.id].name).toLowerCase() + ' · stage ' + n.stage) }
+  else { islandView(c, w, n, t, undefined, undefined, t, game.seed); setText(els.vlbl, (n.name || w.def.isl[n.id].name).toLowerCase() + ' · stage ' + n.stage) }
   setText(els.vday, day(S.time));
 }
 
