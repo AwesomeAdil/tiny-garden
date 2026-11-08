@@ -16,22 +16,25 @@ export function guideText(app) {
   return cityGuide(app, w);
 }
 
-// The city's lessons, in order, each until it has been done once; then the first stall; then a general nudge.
-// A lesson counts as done by what the world shows (a bridge exists, goods have arrived, a spot was chosen), so a
-// loaded save never re-teaches what it has already got past.
+// The city's lessons, in order, each until it has been done once; then the first stall; then the nudge to fill an
+// open spot; then a general nudge. A lesson counts as done by what the world shows (a bridge exists, goods have
+// arrived, a spot was chosen, a bridge is one-way), and lessons 3 and 4 stay done once done (saved in ui.lessons),
+// so a loaded save never re-teaches what it has already got past.
 function cityGuide(app, w) {
   const S = w.S, I = isl(w);
   const delivered = S.nodes.some(n => n.stage > 1 || Object.values(n.paid).some(v => v > 0));
   if (!S.ropes.length && !delivered) { const h = node(w, 'home'); return `Drag from <b>${h ? nameOf(w, h).toUpperCase() : 'the town'}</b> to an island to tie a bridge.` }
   if (!delivered) return 'Water, light and stone travel to islands that need them.';
-  const grown = I.find(n => openSpots(n).length);
-  if (grown) return `${nameOf(w, grown).toUpperCase()} grew! Click a glowing spot to choose what grows there.`;
-  // Lesson 4 is done by a tap on a bridge, a one-way bridge, or an island at stage 3+; once done it stays done (saved).
   const L = app.game.ui.lessons || (app.game.ui.lessons = {});
+  if (app.game.worlds.some(x => isl(x).some(n => Object.values(n.spots).some(s => s && s.pick)))) L.spot = true;
+  const grown = I.find(n => openSpots(n).length), grew = n => `${nameOf(w, n).toUpperCase()} grew! Click a glowing spot to choose what grows there.`;
+  if (grown && !L.spot) return grew(grown);
+  // Lesson 4 is done by a tap on a bridge, a one-way bridge, or an island at stage 3+.
   if (S.ropes.some(r => r.way !== 0) || I.some(n => n.stage >= 3)) L.oneWay = true;
   if (S.ropes.length && !L.oneWay) return 'Tap a bridge to make it one-way.';
   const st = stalls(w)[0];
   if (st) return `${nameOf(w, node(w, st.id)).toUpperCase()} needs ${NAME[st.k].toLowerCase()}, but nothing it can reach makes it.`;
+  if (grown) return grew(grown);
   return 'Tie bridges so every island gets what it needs. Tap a bridge to make it one-way.';
 }
 

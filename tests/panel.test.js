@@ -184,3 +184,56 @@ test('lesson 4 completes on a stage-3 island and on a one-way bridge, and surviv
   const old = JSON.parse(JSON.stringify(serialize(newGame(3), 1))); delete old.ui.lessons;
   assert.deepEqual(deserialize(old).ui.lessons, {});
 });
+
+// rv/stall.mjs: FROST tied to the town alone needs light, and has an open spot at the same time.
+const stallApp = () => {
+  const app = mkApp(), w = app.w, f = w.S.nodes.find(n => n.id === 'frost');
+  tie(w, w.hub, f); w.S.ropes[0].way = 0; f.stage = 2; f.paid.light = 1;
+  return { app, w, f };
+};
+
+test('after lessons 1-4 a stall beats the open-spot nudge; the nudge stays when nothing stalls', async () => {
+  const { stalls } = await import('../web/js/sim/flow.js');
+  const { autoNet } = await import('../web/js/sim/dev.js');
+  const { app, w, f } = stallApp();
+  assert.ok(stalls(w).some(s => s.id === 'frost' && s.k === 'light'));
+  // Lesson 3 (choose a spot) is still to do: it is taught first.
+  app.game.ui.lessons = { oneWay: true };
+  assert.match(guideText(app), /FROST grew! Click a glowing spot/);
+  // Once a spot has been chosen anywhere, lesson 3 is done for good, and the stall wins over the open spot.
+  const e = w.S.nodes.find(n => n.id === 'ember'); e.stage = 2; e.spots[0] = { pick: 'x' };
+  assert.equal(guideText(app), 'FROST needs light, but nothing it can reach makes it.');
+  assert.equal(app.game.ui.lessons.spot, true);
+  delete e.spots[0];
+  assert.equal(guideText(app), 'FROST needs light, but nothing it can reach makes it.', 'done stays done');
+  // No stall: the nudge to fill the open spot still shows.
+  const b = mkApp(); autoNet(b.w); b.game.ui.lessons = { oneWay: true, spot: true };
+  b.w.S.nodes.find(n => n.id === 'frost').stage = 2; b.w.S.nodes.find(n => n.id === 'frost').paid.water = 1;
+  assert.deepEqual(stalls(b.w), []);
+  assert.match(guideText(b), /FROST grew! Click a glowing spot/);
+});
+
+test('a stalled island says so in its panel, in one line', () => {
+  const { app, w, f } = stallApp();
+  w.S.sel = { t: 'node', id: f.id };
+  const h = panelHTML(app);
+  assert.equal((h.match(/nothing it can reach makes it/g) || []).length, 1);
+  assert.match(text(h), /Needs light, but nothing it can reach makes it\./);
+});
+
+test('an island with nothing stalled has no stall line', async () => {
+  const { autoNet } = await import('../web/js/sim/dev.js');
+  const app = mkApp(), w = app.w; autoNet(w);
+  for (const n of islands(w)) { w.S.sel = { t: 'node', id: n.id }; assert.doesNotMatch(panelHTML(app), /nothing it can reach/, n.id) }
+});
+
+test('town stage 4 names the next goal: the long cable, and how many islands are at stage 3', () => {
+  const app = mkApp(), w = app.w; w.hub.stage = 4; w.S.sel = { t: 'node', id: 'planet' };
+  const I = islands(w); I[0].stage = 3; I[1].stage = 4;
+  const nx = app.game.worlds.find(x => x.def.key === w.def.next).def.name;
+  assert.match(text(panelHTML(app)), new RegExp(`The long cable to ${nx} opens when every island is at stage 3 \\(2 of ${I.length} there\\)\\.`));
+  // The last world has nowhere to send a cable: nothing is promised.
+  app.game.ui.world = 1; const L = app.w; L.started = true; L.hub.stage = 4; L.S.sel = { t: 'node', id: 'planet' };
+  assert.equal(L.def.next || null, null);
+  assert.doesNotMatch(text(panelHTML(app)), /long cable/);
+});

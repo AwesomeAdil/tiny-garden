@@ -1,11 +1,11 @@
 // The side panel: an island's name (click to rename), its stage and what the stage still needs, the town and its
 // long cable, a selected bridge, and the system and galaxy selections. Progress is shown as "6 of 60", never stock.
-import { node, makes, piers } from '../sim/world.js';
+import { node, makes, piers, isl } from '../sim/world.js';
 import { sysPlanets } from '../sim/system.js';
 import { GSYS } from '../draw/galaxy.js';
 import { GOODS, NAME } from '../core/palette.js';
 import { ico, uico } from '../core/icons.js';
-import { cost } from '../sim/flow.js';
+import { cost, stalls } from '../sim/flow.js';
 import { cableOpen } from '../sim/town.js';
 import { rename, openSpots } from '../sim/grow.js';
 import { setView, zoomTo } from './dock.js';
@@ -49,16 +49,17 @@ export function panelHTML(app) {
   if (n.kind === 'planet') {
     let h = `<h3 style="color:#8aadf4">THE TOWN<small>town stage ${n.stage} of 4</small></h3>`;
     if (n.stage < 4) return h + needRows(w, n);
-    if (cableOpen(w)) {
-      const nx = game.worlds.find(x => x.def.key === w.def.next);
-      h += `<h4>the long cable to ${esc((nx ? nx.def.name : 'the next world').toUpperCase())}</h4>` + needRows(w, n);
-    }
+    const nx = game.worlds.find(x => x.def.key === w.def.next), to = esc((nx ? nx.def.name : 'the next world').toUpperCase());
+    if (cableOpen(w)) h += `<h4>the long cable to ${to}</h4>` + needRows(w, n);
+    // Not open yet: say what opens it. The last world has no next one, and a built cable needs nothing more.
+    else if (w.def.next && !S.cable) { const I = isl(w); h += `<p>The long cable to ${to} opens when every island is at stage 3 (${I.filter(x => x.stage >= 3).length} of ${I.length} there).</p>` }
     return h;
   }
   const col = w.def.isl[n.id].col, renaming = app.renaming === n.id;
   const title = renaming ? `<input id="rn" class="px" type="text" maxlength="10" spellcheck="false" autocomplete="off" value="${esc(nameOf(w, n))}" aria-label="Island name">` : `<button class="nm" type="button" data-act="rename" title="Click to rename">${esc(nameOf(w, n))}</button>`;
-  const used = S.ropes.filter(r => r.a === n.id || r.b === n.id).length, sp = openSpots(n).length;
+  const used = S.ropes.filter(r => r.a === n.id || r.b === n.id).length, sp = openSpots(n).length, st = stalls(w).find(s => s.id === n.id);
   return `<h3 style="color:${col}">${title}<small>stage ${n.stage} of 4</small></h3>` + needRows(w, n)
+    + (st ? `<p class="stall">Needs ${NAME[st.k].toLowerCase()}, but nothing it can reach makes it.</p>` : '')
     + `<p class="makes">makes ${[...new Set(makes(w, n))].map(k => `<span title="${NAME[k]}">${ico(k)}</span>`).join(' ')}</p>`
     + `<p>piers ${used}/${piers(n)}</p>` + (sp ? `<p class="spots">${sp} ${sp === 1 ? 'spot' : 'spots'} to choose</p>` : '');
 }
