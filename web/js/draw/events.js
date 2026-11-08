@@ -4,7 +4,7 @@
 import { TAU, P, clamp } from '../core/pixel.js';
 import { COL } from '../core/palette.js';
 import { isl } from '../sim/world.js';
-import { A, BAY, glowAt, getSprite, bandOf, isleBob } from './kit.js';
+import { A, BAY, glowAt, getSprite, bandFor, isleBob } from './kit.js';
 
 // A space whale, head to the right, at (x, y): page 44's whale.
 export function whale(c, x, y, t) {
@@ -47,7 +47,7 @@ function traveller(c, w, view, t, p, variant) {
   const W = view.w, list = w ? isl(w).slice().sort((a, b) => b.x - a.x) : [], n = list.length ? list[variant % Math.min(3, list.length)] : null;
   const by0 = Math.round(Math.sin(t * 1.2));
   if (!n) { const bx = Math.round(W + 12 - p * (W + 24)), by = Math.max(20, view.oy + 60) + by0; boat(c, bx, by); trav(c, bx - 2, by, 0, -1, COL.light); return }
-  const k = view.k || 1, I = getSprite(w, n, bandOf(n.y), k), X = Math.round(view.ox + n.x * k), Y = Math.round(view.oy + n.y * k) + isleBob(n, t), dock = X + I.hw + 13, stand = X + Math.round(I.hw * .35);
+  const k = view.k || 1, I = getSprite(w, n, bandFor(n), k), X = Math.round(view.ox + n.x * k), Y = Math.round(view.oy + n.y * k) + isleBob(n, t), dock = X + I.hw + 13, stand = X + Math.round(I.hw * .35);
   const by = Y - 2 + by0, sail = (f, a, b) => Math.round(a + (b - a) * f);
   if (p < .4) { const bx = sail(p / .4, W + 12, dock); boat(c, bx, by); trav(c, bx - 2, by, 0, -1, COL.light); return }
   boat(c, p < .85 ? dock : sail((p - .85) / .15, dock, W + 12), by);

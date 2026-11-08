@@ -16,16 +16,16 @@ import { MAXR, TOWN } from '../sim/content.js';
 import { node, isl, dist, canTie } from '../sim/world.js';
 import { pierSide } from '../sim/grow.js';
 import { SPOTS } from '../sim/picks.js';
-import { CR, STY, BANDS, BASE_HW, skyLayer, twinkle, sun, planetLayer, glowAt, lamp, PROPS, getSprite, drawIsland, SPOT_X, span, plank, along, pier, pierGlow, astro, hazed, bandOf, isleBob } from './kit.js';
+import { CR, STY, BANDS, islandHW, bandFor, skyLayer, twinkle, sun, planetLayer, glowAt, lamp, PROPS, getSprite, drawIsland, SPOT_X, span, plank, along, pier, pierGlow, astro, hazed, isleBob } from './kit.js';
 import { drawEvent } from './events.js';
 
 const S = STY.book, IDLE = '#494d64', BAND_ORDER = ['far', 'mid', 'near'];
 
 // ---------- the horizon ----------
-// TIDE's curve: its top at world y TOWN.y - 6, centred on the town, wide enough that the bottom row is planet
+// TIDE's curve: its top at the town's mapped y, centred on the town, wide enough that the bottom row is planet
 // from edge to edge. All in canvas pixels.
 export function horizon(view) {
-  const k = view.k || 1, top = Math.round(view.oy + (TOWN.y - 6) * k), cx = Math.round(view.ox + TOWN.x * k), d = Math.max(8, view.h - 1 - top), half = Math.max(cx, view.w - cx) + 6;
+  const k = view.k || 1, top = Math.round(view.oy + TOWN.y * k), cx = Math.round(view.ox + TOWN.x * k), d = Math.max(8, view.h - 1 - top), half = Math.max(cx, view.w - cx) + 6;
   const r = (half * half + d * d) / (2 * d);
   return { cx, top, r, cy: top + r, surf: x => top + r - Math.sqrt(Math.max(0, r * r - (x - cx) * (x - cx))) };
 }
@@ -70,7 +70,6 @@ export function cityBackground(game, w, view) {
 }
 
 // ---------- hit test ----------
-const islHW = n => Math.round(BASE_HW[clamp(n.stage | 0, 1, 4)] * BANDS[bandOf(n.y)].k);
 // The node under point p: the town round its centre, an island over its top and body.
 // p is in WORLD units (640x300), the sim's space. Pass the view to give a CANVAS point instead: it is mapped
 // back by view.k and the offset first (nodeAt(w, canvasPoint, view)).
@@ -80,7 +79,7 @@ export const nodeAt = (w, p, view = null) => {
   for (const n of w.S.nodes) {
     let d;
     if (n.kind === 'planet') { d = Math.hypot(n.x - p.x, n.y - p.y); if (d >= n.r + 3) continue }
-    else { const hw = islHW(n); if (Math.abs(p.x - n.x) > hw + 3 || p.y < n.y - 16 || p.y > n.y + hw * .85 + 2) continue; d = Math.hypot(p.x - n.x, p.y - n.y - 4) }
+    else { const hw = islandHW(n); if (Math.abs(p.x - n.x) > hw + 3 || p.y < n.y - 16 || p.y > n.y + hw * .85 + 2) continue; d = Math.hypot(p.x - n.x, p.y - n.y - 4) }
     if (d < bd) { bd = d; best = n }
   }
   return best;
@@ -194,7 +193,7 @@ export function drawCity(c, game, w, t, view, input = null) {
   {
     // islands: band, sprite and where its top centre is this frame
     const isles = new Map();
-    for (const n of isl(w)) { const band = bandOf(n.y); isles.set(n.id, { n, band, bi: BAND_ORDER.indexOf(band), I: getSprite(w, n, band, k), x: Math.round(view.ox + n.x * k), y: Math.round(view.oy + n.y * k) + isleBob(n, t) }) }
+    for (const n of isl(w)) { const band = bandFor(n); isles.set(n.id, { n, band, bi: BAND_ORDER.indexOf(band), I: getSprite(w, n, band, k), x: Math.round(view.ox + n.x * k), y: Math.round(view.oy + n.y * k) + isleBob(n, t) }) }
     const piers = piersOf(w, isles, T, H), bridges = new Map(), hz = id => { const D = isles.get(id); return D ? BANDS[D.band].haze : 0 }, bi = id => { const D = isles.get(id); return D ? D.bi : 2 };
     for (const r of w.S.ropes) {
       const pa = piers.get(r.id + ':' + r.a), pb = piers.get(r.id + ':' + r.b); if (!pa || !pb) continue;

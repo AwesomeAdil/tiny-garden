@@ -5,7 +5,8 @@
 // The mockup's globals are gone: haze is a per-call wrapper (hazed) and every random stream is seeded per call.
 import { P, mix, rngf, rgb, u32, B8, NN } from '../core/pixel.js';
 import { PixCtx } from '../core/pixctx.js';
-import { ISL_OCEAN, ISL_LAVA } from '../sim/content.js';
+import { ISL_OCEAN, ISL_LAVA, ISLAND_HW } from '../sim/content.js';
+import { bandOf } from '../sim/world.js';
 import { SPOTS, PIER_PICKS, MID_PICKS } from '../sim/picks.js';
 import { pierSide, spotKind } from '../sim/grow.js';
 
@@ -224,7 +225,7 @@ export function makeIsland(o) {
   const m = new Set(), key = (x, y) => x * 1000 + y, M = (x, y) => m.has(key(x, y));
   for (let y = 0; y <= maxD; y++) for (let x = -hw - 2; x <= hw + 2; x++) if (inL(x, y)) m.add(key(x, y));
   if (S.outline) for (let y = -1; y <= maxD + 1; y++) for (let x = -hw - 3; x <= hw + 3; x++) if (!M(x, y) && (M(x - 1, y) || M(x + 1, y) || M(x, y - 1) || M(x, y + 1))) P(c, CR, cx + x, ty + y);
-  const boulders = []; for (let i = 0; i < Math.max(1, hw / 7); i++) boulders.push([Math.round((R() * 2 - 1) * hw * .6), Math.round(4 + R() * depth * .45), 1 + (R() * 2 | 0)]);
+  const boulders = [], bk = Math.max(0, Math.floor((hw - 24) / 14)); for (let i = 0; i < Math.max(1, hw / 7); i++) boulders.push([Math.round((R() * 2 - 1) * hw * .6), Math.round(4 + R() * depth * .45), 1 + (R() * 2 | 0) + (bk ? R() * (bk + 1) | 0 : 0)]);
   for (let y = 0; y <= maxD; y++) for (let x = -hw - 2; x <= hw + 2; x++) {
     if (!M(x, y)) continue;
     const L = !M(x - 1, y), Rt = !M(x + 1, y), B = !M(x, y + 1);
@@ -300,9 +301,18 @@ export function homeProp(type, seed, hw) {
   const T = TYPES[type] || {}, k = HOME[T.deco] || 'house', v = vary(k, seed * 53 + 5, T);
   return { k, ...v, x: Math.round(hw * HOME_X) + v.dx };
 }
-export const BANDS = { far: { k: .7, haze: .55 }, mid: { k: .85, haze: .25 }, near: { k: 1, haze: 0 } };
-// The depth band of a world y (islands higher up are farther away).
-export const bandOf = y => y < 110 ? 'far' : y < 190 ? 'mid' : 'near';
+// Depth bands: far islands fade toward the sky. Their sizes are sim/content.js ISLAND_HW (world units).
+// Small scenery for the gaps between spots on a wide top, by the type's deco.
+const FILL = { house: ['tree', 'tuft', 'tree', 'stone'], forge: ['stone', 'cairn', 'stone', 'tuft'], sparks: ['emberTree', 'stone', 'tuft'], snow: ['pine', 'tuft', 'pine', 'stone'], crystal: ['crystal', 'stone', 'tuft'], flowers: ['tree', 'tuft', 'tree', 'flowers'] };
+const FILL_SHAPE = { tree: F => ({ r: 2 + (F() * 2 | 0), h: 2 + (F() * 2 | 0), fruit: F() < .2 ? 1 : 0 }), pine: F => ({ h: 5 + (F() * 3 | 0) }), emberTree: F => ({ h: 4, sp: 2 }), crystal: F => ({ dh: [-3, -2, -2, -1].map(d => d - (F() * 2 | 0)) }), flowers: F => ({ seed: 50 + (F() * 50 | 0) }) };
+export const BANDS = { far: { haze: .55 }, mid: { haze: .25 }, near: { haze: 0 } };
+// Islands grow a little with each stage, as a factor on their band's size.
+export const STAGE_F = [0, .75, .85, .93, 1];
+export { bandOf };
+// An island's band: the one layout gave it (saved on the node), else from its y.
+export const bandFor = n => n.band || bandOf(n.y);
+// An island's half-width in world units.
+export const islandHW = (n, band = bandFor(n)) => (ISLAND_HW[band] || ISLAND_HW.near) * STAGE_F[Math.max(1, Math.min(4, n.stage | 0 || 1))];
 // An island's bob, in whole pixels, from its seed (the same phase in every view and in the events).
 export const isleBob = (n, t) => bob(t, (n.seed || 0) * 1.7);
 
@@ -314,6 +324,18 @@ export function islandSprite(spec) {
   // Small ground cover grows with the island's width (a bigger view builds a wider island with more of it,
   // never bigger props): tufts from stage 2, and the bloom's flower beds at stage 4.
   if (st >= 2) for (let i = 0, n = Math.max(2, Math.round(hw / 9)); i < n; i++) props.push({ k: 'tuft', x: Math.round((R() * 2 - 1) * hw * .8) });
+  // On a wide top (the city at a big view scale) the gaps between the spots get small scenery in the type's
+  // manner, from their own seed, so the island reads full rather than bare. It goes down before the picks and
+  // the centrepiece; a stage-1 rock only gets stones.
+  if (hw >= 30) {
+    const F = rngf(seed * 977 + 3), kinds = st === 1 ? ['stone', 'cairn'] : FILL[T.deco] || FILL.house;
+    const taken = [...SPOT_X, HOME_X].map(f => f * hw);
+    for (let x = -hw + 4; x <= hw - 4; x += 10 + (F() * 4 | 0)) {
+      if (taken.some(t => Math.abs(t - x) < 7) || F() < .25) continue;
+      const k = kinds[F() * kinds.length | 0], v = FILL_SHAPE[k] ? FILL_SHAPE[k](F) : {};
+      props.push({ k, ...v, x: Math.round(x) });
+    }
+  }
   // Bloom goes down before the picks and the centrepiece, so it never paints over them.
   if (st >= 4) { props.push({ k: 'flowers', x: Math.round(-hw * .62), seed: seed + 11 }, { k: 'flowers', x: Math.round(hw * .32), seed: seed + 12 }); for (let i = 0, n = Math.floor(hw / 22); i < n; i++) props.push({ k: 'flowers', x: Math.round((R() * 2 - 1) * hw * .7), seed: seed + 13 + i }) }
   for (const p of spec.picks || []) if (PROPS[p.prop] && SPOTS[p.spot]) props.push(at(p.prop, p.spot));
@@ -327,8 +349,8 @@ export function islandSprite(spec) {
 const PICK_PROP = Object.fromEntries([...Object.values(PIER_PICKS), ...Object.values(MID_PICKS)].flat().map(p => [p.id, p.prop]));
 const RIMS = SPOTS.filter(s => s.side !== 0).map(s => s.i);
 // The sprite spec for island n in depth band 'far' | 'mid' | 'near', drawn at view scale k (the city's
-// world-to-canvas factor): hw is BASE_HW x band x k, so a bigger view gets a bigger, more detailed island
-// (props keep their pixel size). A fall forms on a rim with a waterfall pick, and on any rim where a bridge
+// world-to-canvas factor): hw is ISLAND_HW[band] x STAGE_F[stage] x k, built natively at that size, so a bigger
+// view gets a bigger, more detailed island (props keep their pixel size). A fall forms on a rim with a waterfall pick, and on any rim where a bridge
 // brings water in.
 export function islandSpec(w, n, band, k = 1) {
   const B = BANDS[band] || BANDS.near, st = Math.max(1, Math.min(4, n.stage || 1)), picks = [], gifts = [], falls = new Set();
@@ -341,7 +363,7 @@ export function islandSpec(w, n, band, k = 1) {
     const k = spotKind(w, n, i); if (k.kind === 'pier' && k.good === 'water') falls.add(SPOTS[i].side);
   }
   const piers = w.S.ropes.filter(r => r.a === n.id || r.b === n.id).map(r => pierSide(w, n, r.id)).sort();
-  const hw = Math.max(4, Math.round(BASE_HW[st] * B.k * k));
+  const hw = Math.max(4, Math.round(islandHW(n, band) * k));
   return { type: n.id, seed: n.seed, stage: st, picks, gifts, falls: [...falls].sort(), piers, hw, depth: Math.round(hw * .85), haze: B.haze };
 }
 const keyOf = (w, s, band) => `${w.def.key}|${s.type}|seed:${s.seed}|st:${s.stage}|p:${s.picks.map(p => p.spot + p.prop)}|g:${s.gifts.map(g => g.spot + g.kind + g.variant)}|piers:${s.piers}|falls:${s.falls}|hw:${s.hw}|${band}`;

@@ -1,5 +1,5 @@
 // Dev helpers (tests, ?skip=1 and shots). Not part of normal play.
-import { dist, isl, canTie, tie } from './world.js';
+import { dist, isl, canTie, tie, spine, bandOf } from './world.js';
 import { SPOTS } from './picks.js';
 import { offers, choose } from './grow.js';
 import { stepAll } from './system.js';
@@ -15,8 +15,11 @@ const closest = (w, ok) => {
   return best;
 };
 
-// Greedy: tie the nearest unconnected island to the connected set, then up to 4 extra ropes for redundancy.
+// The layout's spine first (town to the near islands, then outward island by island), then greedy: tie the
+// nearest unconnected island to the connected set, then up to 4 extra ropes for redundancy.
 export function autoNet(w) {
+  const sorted = isl(w).slice().sort((a, b) => a.x - b.x).map(n => ({ id: n.id, x: n.x, y: n.y, band: n.band || bandOf(n.y) }));
+  for (const [p, q] of spine(sorted)) { const a = w.S.nodes.find(n => n.id === p.id), b = w.S.nodes.find(n => n.id === q.id); if (canTie(w, a, b).ok) tie(w, a, b) }
   const on = new Set([w.hub.id]);
   for (const r of w.S.ropes) { on.add(r.a); on.add(r.b) }
   for (let p; (p = closest(w, (a, b) => on.has(a.id) && !on.has(b.id)));) { tie(w, p[0], p[1]); on.add(p[1].id) }

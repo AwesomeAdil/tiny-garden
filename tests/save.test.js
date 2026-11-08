@@ -166,3 +166,12 @@ test('a bad active event is dropped and the game survives catch-up; bad ev numbe
   assert.equal(deserialize(c).ev.caught, true);
   assert.equal(deserialize(c).ev.active, null);
 });
+
+test('island bands survive a save round-trip', async () => {
+  const { newGame } = await import('../web/js/sim/game.js');
+  const { serialize, deserialize } = await import('../web/js/sim/save.js');
+  const g = newGame(4), back = deserialize(JSON.parse(JSON.stringify(serialize(g, 0))));
+  const bands = w => w.S.nodes.filter(n => n.kind === 'island').map(n => n.band);
+  assert.deepEqual(bands(back.worlds[0]), bands(g.worlds[0]));
+  assert.ok(bands(g.worlds[0]).every(b => ['far', 'mid', 'near'].includes(b)));
+});

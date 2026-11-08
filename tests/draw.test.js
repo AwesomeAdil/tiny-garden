@@ -88,11 +88,12 @@ test('nodeAt finds islands and the town in world units', () => {
 });
 
 test('islands are drawn natively at the view scale', async () => {
-  const { getSprite, bandOf, BASE_HW, BANDS } = await import('../web/js/draw/kit.js');
+  const { getSprite, STAGE_F } = await import('../web/js/draw/kit.js');
+  const { ISLAND_HW } = await import('../web/js/sim/content.js');
   const game = skip(newGame(3)), w = game.worlds[0], v = view(1146, 480);
   for (const n of isl(w)) {
-    const s1 = getSprite(w, n, bandOf(n.y), 1), sk = getSprite(w, n, bandOf(n.y), v.k);
-    assert.equal(sk.hw, Math.round(BASE_HW[n.stage] * BANDS[bandOf(n.y)].k * v.k));
+    const s1 = getSprite(w, n, n.band, 1), sk = getSprite(w, n, n.band, v.k);
+    assert.equal(sk.hw, Math.round(ISLAND_HW[n.band] * STAGE_F[n.stage] * v.k));
     assert.ok(sk.w > s1.w && sk !== s1, 'a bigger sprite, built anew');
   }
 });

@@ -1,7 +1,11 @@
 // Game content as data. DOM-free. Add planets, islands, goals and stars here.
 export const W = 640, H = 300;
 export const CARRY = 3, MAXR = 170, SPEED = 24, OUTBOX = 6, MOVEPX = 12;
-export const TOWN = { x: 320, y: 286, r: 22 };
+export const TOWN = { x: 320, y: 240, r: 22 }; // the planet's top: the bottom fifth of the world is TIDE
+// The horizon layout (page 45 lay-h): islands float in three depth bands above the town. y ranges per band,
+// and each band's island half-width in world units (at full stage; the city scales it by the view).
+export const BAND_Y = { far: [40, 80], mid: [95, 135], near: [150, 185] };
+export const ISLAND_HW = { far: 26, mid: 34, near: 50 };
 export const RATE = 1 / 25; // goods per second, per good an island makes
 export const STAGE_COST = [0, 4, 300, 1500]; // per needed good, stage i -> i+1 (Task 7 tunes)
 

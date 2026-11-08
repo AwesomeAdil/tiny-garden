@@ -1,20 +1,37 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { layout, makeWorld, tie, untie, node, isl, dist, makes, piers, canTie } from '../web/js/sim/world.js';
-import { DEF_OCEAN, ISL_OCEAN, MAXR, TOWN } from '../web/js/sim/content.js';
+import { layout, makeWorld, tie, untie, node, isl, dist, makes, piers, canTie, bandOf, spine } from '../web/js/sim/world.js';
+import { DEF_OCEAN, ISL_OCEAN, ISL_LAVA, MAXR, TOWN, ISLAND_HW, BAND_Y } from '../web/js/sim/content.js';
 
 const at = (w, id, x, y) => { const n = node(w, id); n.x = x; n.y = y; return n };
 
-test('layout puts every island inside 640x300 and reachable from the town', () => {
-  for (let seed = 1; seed <= 20; seed++) {
-    const pos = layout(seed, Object.keys(ISL_OCEAN));
-    const pts = Object.values(pos);
-    assert.equal(pts.length, 6);
-    for (const [x, y] of pts) assert.ok(x > 0 && x < 640 && y > 0 && y < TOWN.y - 20, `seed ${seed}: ${x},${y}`);
-    const seen = new Set(), q = [[TOWN.x, TOWN.y]];
-    while (q.length) { const [cx, cy] = q.shift(); pts.forEach((p, i) => { if (!seen.has(i) && Math.hypot(p[0] - cx, p[1] - cy) <= MAXR - 8) { seen.add(i); q.push(p) } }) }
-    assert.equal(seen.size, 6, `seed ${seed} leaves an island cut off`);
+const reachable = pts => { const seen = new Set(), q = [[TOWN.x, TOWN.y]]; while (q.length) { const [cx, cy] = q.shift(); pts.forEach((p, i) => { if (!seen.has(i) && Math.hypot(p[0] - cx, p[1] - cy) <= MAXR - 8) { seen.add(i); q.push(p) } }) } return seen.size };
+
+test('horizon layout: bands, spread, spacing and reach, for both worlds', () => {
+  for (const ids of [Object.keys(ISL_OCEAN), Object.keys(ISL_LAVA)]) for (let seed = 1; seed <= 20; seed++) {
+    const pos = layout(seed, ids), pts = Object.values(pos), why = `${ids.length} islands, seed ${seed}`;
+    assert.equal(pts.length, ids.length);
+    assert.equal(reachable(pts), ids.length, `${why}: an island is cut off`);
+    const bands = { far: 0, mid: 0, near: 0 };
+    for (const [x, y, band] of pts) {
+      const [lo, hi] = BAND_Y[band];
+      assert.ok(y >= lo && y <= hi && x >= 40 && x <= 600, `${why}: ${band} island at ${x},${y}`);
+      assert.equal(bandOf(y), band, `${why}: bandOf agrees`);
+      bands[band]++;
+    }
+    for (const b of ['far', 'mid', 'near']) assert.ok(bands[b] >= 1 && bands[b] <= Math.ceil(ids.length / 3), `${why}: ${b} x${bands[b]}`);
+    const xs = pts.map(p => p[0]);
+    assert.ok(Math.max(...xs) - Math.min(...xs) >= 400, `${why}: spread ${Math.max(...xs) - Math.min(...xs)}`);
+    for (let i = 0; i < pts.length; i++) for (let j = i + 1; j < pts.length; j++) if (pts[i][2] === pts[j][2])
+      assert.ok(Math.abs(pts[i][0] - pts[j][0]) >= ISLAND_HW[pts[i][2]] * 2 + 12, `${why}: two ${pts[i][2]} islands overlap`);
+    assert.ok(pts.filter(p => Math.hypot(p[0] - TOWN.x, p[1] - TOWN.y) <= MAXR).length >= 2, `${why}: the town reaches fewer than 2 islands`);
   }
+});
+
+test('makeWorld stores each island\'s band', () => {
+  const w = makeWorld(DEF_OCEAN, 3);
+  for (const n of isl(w)) assert.equal(n.band, bandOf(n.y));
+  assert.deepEqual(TOWN, { x: 320, y: 240, r: 22 });
 });
 
 test('islands start as bare rocks with no bridges', () => {
@@ -57,4 +74,18 @@ test('canTie refuses self, duplicate, out of reach, full piers and crossings', (
   untie(w, r.id);
   assert.equal(w.S.ropes.length, 1);
   assert.equal(canTie(w, c, d).ok, true);
+});
+
+test('the spine ties every island to the town with stage-1 piers and no crossings', async () => {
+  const { autoNet } = await import('../web/js/sim/dev.js');
+  const { DEF_LAVA } = await import('../web/js/sim/content.js');
+  for (const def of [DEF_OCEAN, DEF_LAVA]) for (let seed = 1; seed <= 20; seed++) {
+    const w = makeWorld(def, seed), sorted = isl(w).slice().sort((a, b) => a.x - b.x);
+    const sp = spine(sorted);
+    assert.equal(sp.length, sorted.length, `${def.key} seed ${seed}: one bridge per island`);
+    for (const [p, q] of sp) assert.ok(Math.hypot(p.x - q.x, p.y - q.y) <= MAXR - 8, `${def.key} seed ${seed}: ${p.id}-${q.id} out of reach`);
+    autoNet(w);
+    const on = new Set(['planet']); for (let ch = 1; ch;) { ch = 0; for (const r of w.S.ropes) if (on.has(r.a) !== on.has(r.b)) { on.add(r.a); on.add(r.b); ch = 1 } }
+    assert.equal(on.size, sorted.length + 1, `${def.key} seed ${seed}: autoNet leaves an island cut off`);
+  }
 });
