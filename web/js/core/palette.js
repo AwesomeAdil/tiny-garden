@@ -1,8 +1,8 @@
 import { TAU, ramp, mix } from './pixel.js';
 export const LIGHT = '#eed49f', HEAT = '#f5a97f', ROCK = '#a5adcb', WATER = '#8aadf4';
-export const RES = ['rock', 'heat', 'water', 'light', 'growth', 'tools'];
-export const COL = { rock: ROCK, heat: HEAT, water: WATER, light: LIGHT, growth: '#a6da95', tools: '#b7bdf8' };
-export const NAME = { rock: 'Rock', heat: 'Heat', water: 'Water', light: 'Light', growth: 'Growth', tools: 'Tools' };
+export const GOODS = ['water', 'light', 'stone'];
+export const COL = { water: WATER, light: LIGHT, stone: ROCK };
+export const NAME = { water: 'Water', light: 'Light', stone: 'Stone' };
 export const PAL = {e:'#a6da95',E:'#5f9a68',m:'#a98a7c',v:'#b7bdf8',V:'#7f85c8',c:'#7dc4e4',C:'#4a8fb0',p:'#f0c6c6',P:'#c99a9a',y:'#eed49f',Y:'#fff4d6',o:'#f5a97f',r:'#ed8796',d:'#a8473f',g:'#7f849c',G:'#a5adcb',k:'#494d64',b:'#8aadf4',B:'#c9dafb',n:'#3f5fa8',w:'#ffffff'};
 export const UPAL = { ...PAL, h: '#6e5a55', H: '#c9a58e', s: '#24273a' };
 export const KD = { crust: '#14151f', blue: '#8aadf4', mauve: '#c6a0f6', peach: '#f5a97f', yellow: '#eed49f', teal: '#8bd5ca', text: '#cad3f5', flamingo: '#f0c6c6' };

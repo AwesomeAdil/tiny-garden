@@ -1,61 +1,60 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { layout, makeWorld, tie, node, dist } from '../web/js/sim/world.js';
-import { tangled, allPairs, hops, nextHop } from '../web/js/sim/graph.js';
-import { ISL_OCEAN, DEF_OCEAN, MAXR } from '../web/js/sim/content.js';
+import { layout, makeWorld, tie, untie, node, isl, dist, makes, piers, canTie } from '../web/js/sim/world.js';
+import { DEF_OCEAN, ISL_OCEAN, MAXR, TOWN } from '../web/js/sim/content.js';
 
-const mk = (id, x, y) => ({ id, kind: 'island', x, y, r: 12, stock: {} });
+const at = (w, id, x, y) => { const n = node(w, id); n.x = x; n.y = y; return n };
 
-test('layout places every island inside the map, 46px apart, all reachable from the planet', () => {
-  for (const seed of [1, 2, 3, 4, 5]) {
-    const pos = layout(seed, Object.keys(ISL_OCEAN), 'home');
-    assert.equal(Object.keys(pos).length, 6);
+test('layout puts every island inside 640x300 and reachable from the town', () => {
+  for (let seed = 1; seed <= 20; seed++) {
+    const pos = layout(seed, Object.keys(ISL_OCEAN));
     const pts = Object.values(pos);
-    for (const [x, y] of pts) assert.ok(x >= 22 && x <= 298 && y >= 26 && y <= 182);
-    for (let i = 0; i < pts.length; i++) for (let j = i + 1; j < pts.length; j++) assert.ok(Math.hypot(pts[i][0] - pts[j][0], pts[i][1] - pts[j][1]) >= 46);
-    const seen = new Set([-1]), q = [[160, 100]], all = pts;
-    const done = new Set();
-    while (q.length) { const [cx, cy] = q.shift(); all.forEach((p, i) => { if (!done.has(i) && Math.hypot(p[0] - cx, p[1] - cy) <= MAXR - 8) { done.add(i); q.push(p) } }) }
-    assert.equal(done.size, 6);
+    assert.equal(pts.length, 6);
+    for (const [x, y] of pts) assert.ok(x > 0 && x < 640 && y > 0 && y < TOWN.y - 20, `seed ${seed}: ${x},${y}`);
+    const seen = new Set(), q = [[TOWN.x, TOWN.y]];
+    while (q.length) { const [cx, cy] = q.shift(); pts.forEach((p, i) => { if (!seen.has(i) && Math.hypot(p[0] - cx, p[1] - cy) <= MAXR - 8) { seen.add(i); q.push(p) } }) }
+    assert.equal(seen.size, 6, `seed ${seed} leaves an island cut off`);
   }
 });
 
-test('makeWorld starts with the planet, the start island found, 10 Rock', () => {
-  const w = makeWorld(DEF_OCEAN, 7);
-  assert.equal(w.hub.stock.rock, 10);
-  assert.deepEqual([...w.S.found].sort(), ['home', 'planet']);
-  assert.equal(w.started, false);
-  assert.equal(w.S.nodes.length, 7);
-  assert.deepEqual(layout(7, Object.keys(ISL_OCEAN), 'home'), w.POS);
+test('islands start as bare rocks with no bridges', () => {
+  const w = makeWorld(DEF_OCEAN, 3), is = isl(w);
+  assert.equal(is.length, 6);
+  for (const n of is) { assert.equal(n.stage, 1); assert.deepEqual(n.paid, { water: 0, light: 0, stone: 0 }) }
+  assert.equal(w.S.ropes.length, 0);
 });
 
-test('tie caps length at MAXR and gives unique ids', () => {
-  const w = makeWorld(DEF_OCEAN, 7);
-  const a = mk('a', 0, 0), b = mk('b', 50, 0), c = mk('c', 300, 0);
-  const r1 = tie(w, a, b), r2 = tie(w, a, c);
-  assert.notEqual(r1.id, r2.id);
-  assert.equal(r1.len, Math.min(112, dist(a, b) + 12));
-  assert.equal(r2.len, 112);
-  assert.equal(w.S.ropes.length, 2);
+test('makes follows the type table, plus sends', () => {
+  const w = makeWorld(DEF_OCEAN, 3), f = node(w, 'frost');
+  assert.deepEqual(makes(w, f), ['water']);
+  f.sends = 'light';
+  assert.deepEqual(makes(w, f), ['water', 'light']);
 });
 
-test('tangled flags crossing ropes only', () => {
-  const w = makeWorld(DEF_OCEAN, 7);
-  w.S.nodes = [mk('a', 0, 0), mk('b', 100, 100), mk('c', 100, 0), mk('d', 0, 100)];
-  const r1 = tie(w, node(w, 'a'), node(w, 'b')), r2 = tie(w, node(w, 'c'), node(w, 'd'));
-  assert.deepEqual([...tangled(w)].sort(), [r1.id, r2.id].sort());
-  w.S.ropes = [];
-  const s1 = tie(w, node(w, 'a'), node(w, 'b')), s2 = tie(w, node(w, 'a'), node(w, 'c'));
-  assert.equal(tangled(w).size, 0, `${s1.id},${s2.id} share an endpoint`);
+test('piers grow with stage; the town has 4', () => {
+  const w = makeWorld(DEF_OCEAN, 3), n = node(w, 'home');
+  assert.equal(piers(n), 2);
+  n.stage = 4;
+  assert.equal(piers(n), 5);
+  assert.equal(piers(w.hub), 4);
 });
 
-test('hops and nextHop follow the rope graph', () => {
-  const w = makeWorld(DEF_OCEAN, 7);
-  tie(w, node(w, 'planet'), node(w, 'home'));
-  tie(w, node(w, 'home'), node(w, 'ember'));
-  allPairs(w);
-  assert.equal(hops(w, 'planet', 'ember'), 2);
-  assert.equal(nextHop(w, 'planet', 'ember'), 'home');
-  assert.equal(hops(w, 'planet', 'frost'), Infinity);
-  assert.equal(nextHop(w, 'planet', 'frost'), undefined);
+test('canTie refuses self, duplicate, out of reach, full piers and crossings', () => {
+  const w = makeWorld(DEF_OCEAN, 3);
+  const a = at(w, 'home', 100, 100), b = at(w, 'ember', 180, 100), c = at(w, 'frost', 140, 60), d = at(w, 'amethyst', 140, 140);
+  at(w, 'verdant', 600, 20); at(w, 'anvil', 20, 20);
+  assert.equal(canTie(w, a, a).why, 'self');
+  assert.deepEqual(canTie(w, a, b), { ok: true });
+  tie(w, a, b);
+  assert.equal(canTie(w, a, b).why, 'dup');
+  assert.equal(canTie(w, b, a).why, 'dup');
+  assert.equal(canTie(w, a, node(w, 'verdant')).why, 'reach');
+  assert.equal(canTie(w, c, d).why, 'cross');
+  // home (stage 1) has 2 piers: one more rope fills it
+  tie(w, a, c);
+  assert.equal(canTie(w, a, node(w, 'anvil')).why, 'piers');
+  const r = w.S.ropes[0];
+  untie(w, r.id);
+  assert.equal(w.S.ropes.length, 1);
+  assert.equal(canTie(w, c, d).ok, true);
 });
