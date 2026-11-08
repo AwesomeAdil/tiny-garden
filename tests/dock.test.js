@@ -2,7 +2,16 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 globalThis.document ??= { createElement: () => ({ getContext: () => ({ fillRect() {}, set fillStyle(v) {} }), toDataURL: () => 'data:,' }) };
-const { askNewMap, confirmNewMap } = await import('../web/js/ui/dock.js');
+const dock = await import('../web/js/ui/dock.js'), { askNewMap, confirmNewMap } = dock;
+const { readFileSync, existsSync } = await import('node:fs');
+const html = readFileSync(new URL('../web/index.html', import.meta.url), 'utf8');
+
+test('dock has no shop button', () => {
+  assert.equal(dock.setShop, undefined, 'no setShop');
+  assert.doesNotMatch(html, /id="shopbtn"|data-ui="shop"|>Shop</, 'no shop button in index.html');
+  assert.doesNotMatch(html, /id="price"/, 'no price tag');
+  assert.equal(existsSync(new URL('../web/js/ui/price.js', import.meta.url)), false, 'price.js is gone');
+});
 
 const mkApp = () => {
   const app = { asking: false, made: 0, newMap() { this.made++ }, els: { ask: { hidden: true, querySelector: () => ({ focus() {} }) }, newbtn: { setAttribute() {} } } };

@@ -58,3 +58,13 @@ test('the names canvas is hidden and cleared in wallpaper and outside galaxy/sys
     assert.equal(a.els.names.style.display, 'none', v);
   }
 });
+
+test('city tags name every island and the town, with no bridge-slot pips', () => {
+  const app = mkApp(); app.game.ui.view = 'planet';
+  const w = app.w; w.S.nodes.find(n => n.kind === 'island').stage = 3;
+  renderTags(app);
+  const h = app.els.tags.innerHTML;
+  for (const n of w.S.nodes) if (n.kind === 'island') assert.ok(h.includes(w.def.isl[n.id].name), n.id);
+  assert.ok(h.includes('TOWN'));
+  assert.doesNotMatch(h, /pips/);
+});

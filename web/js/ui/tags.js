@@ -1,38 +1,30 @@
-// Name tags over the city map (islands and the town square) and the bridge-slot pips. Ported from page 38.
-// City tags are positioned in % of the 320x200 map, so they follow it at any scale.
+// Name tags over the city (islands and the town). Ported from page 38.
+// City tags are positioned in % of the canvas (the world mapped through worldView), so they follow it at any scale.
 // The galaxy and system names are pixel text on their own canvas (#names), placed by ui/names.js.
-import { RES, NAMEC } from '../core/palette.js';
-import { ico, uico, pixText, textW } from '../core/icons.js';
+import { NAMEC } from '../core/palette.js';
+import { uico, pixText, textW } from '../core/icons.js';
 import { W, H } from '../sim/content.js';
+import { worldView } from '../core/pixel.js';
 import { isl } from '../sim/world.js';
-import { wants, met, ropesAt, slots } from '../sim/economy.js';
+import { islandHW, depthFor } from '../draw/kit.js';
+import { HUB_DEPTH } from '../draw/city.js';
 import { sysSpots } from '../draw/system.js';
 import { GSYS, gpos, galShownRot, galAbove } from '../draw/galaxy.js';
 import { artMask, placeNames, namesOn } from './names.js';
 
-// One square pip per bridge slot: filled = used, hollow = free, red = over the limit.
-export function pips(w, n) {
-  const c = ropesAt(w, n.id), s = slots(n); let h = '';
-  for (let i = 0; i < Math.max(c, s); i++) h += i >= s ? '<i class="x"></i>' : i < c ? '<i class="on"></i>' : '<i></i>';
-  return '<span class="pips">' + h + '</span>';
-}
-
-const at = (x, y) => `left:${(x / W * 100).toFixed(2)}%;top:${(y / H * 100).toFixed(2)}%`;
+// World point (x, y) in % of the canvas the city is drawn on (app.art; the world itself before the first layout).
+const placeAt = (app, x, y) => {
+  const a = app.art, cw = a && a.w || W, ch = a && a.h || H, v = worldView(cw, ch);
+  return `left:${((v.ox + x * v.k) / cw * 100).toFixed(2)}%;top:${((v.oy + y * v.k) / ch * 100).toFixed(2)}%`;
+};
 
 function tagsHTML(app) {
   if (app.game.ui.view !== 'planet') return '';
-  const w = app.w, S = w.S, ISL = w.def.isl, hub = w.hub;
-  let h = isl(w).map(n => {
-    const s = ISL[n.id], seen = S.found.has(n.id) || S.survey; let inner;
-    if (!seen) inner = '<span style="color:#6e738d">?</span>';
-    else {
-      const req = RES.filter(k => wants(w, n, k)).map(ico).join(''), found = S.found.has(n.id), slow = found && !met(w, n);
-      inner = `<span style="color:${s.col}">${s.name}${n.level > 1 ? ' <span class="lv">' + uico('star').repeat(n.level - 1) + '</span>' : ''}${found ? ' ' + pips(w, n) : ''}</span>` +
-        (found ? `<span class="row">${ico(s.makes)}${n.stock[s.makes]}${req ? ' <span class="want">wants</span>' + req : ''}${slow ? ' <span class="slow">slow</span>' : ''}</span>` : '');
-    }
-    return `<div class="ntag" style="${at(n.x, n.y + 12)}">${inner}</div>`;
-  }).join('');
-  h += `<div class="ntag" style="${at(hub.x + 44, hub.y - 5)}"><span style="color:#8aadf4">TOWN SQUARE ${pips(w, hub)}</span></div>`;
+  const w = app.w, ISL = w.def.isl, hub = w.hub, a = app.art, k = worldView(a && a.w || W, a && a.h || H).k;
+  // under each island's rock: its name, and a star per stage past the first
+  let h = isl(w).map(n => { const s = ISL[n.id], below = (depthFor(Math.max(4, Math.round(islandHW(n) * k))) + 4) / k;
+    return `<div class="ntag" style="${placeAt(app, n.x, n.y + below)}"><span style="color:${s.col}">${n.name || s.name}${n.stage > 1 ? ' <span class="lv">' + uico('star').repeat(n.stage - 1) + '</span>' : ''}</span></div>` }).join('');
+  h += `<div class="ntag" style="${placeAt(app, hub.x, hub.y + (HUB_DEPTH + 9) / k)}"><span style="color:#8aadf4">TOWN${hub.stage > 1 ? ' <span class="lv">' + uico('star').repeat(hub.stage - 1) + '</span>' : ''}</span></div>`;
   return h;
 }
 

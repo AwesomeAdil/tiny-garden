@@ -23,10 +23,8 @@
   <div class="dock" id="dock">
     <div class="grp"><span class="gl">build</span>
       <button class="px dk" type="button" data-tool="move" aria-pressed="true"><img data-ui="move" alt="">Move<kbd>M</kbd></button>
-      <button class="px dk" type="button" data-tool="rope" aria-pressed="false"><img data-ui="rope" alt="">Rope<kbd>R</kbd></button>
-      <button class="px dk" type="button" data-tool="cut" aria-pressed="false"><img data-ui="cut" alt="">Cut<kbd>C</kbd></button></div>
-    <div class="grp"><span class="gl">spend</span>
-      <button class="px dk shop" type="button" id="shopbtn" aria-pressed="false"><img data-ui="shop" alt="">Shop<kbd>S</kbd></button></div>
+      <button class="px dk" type="button" data-tool="rope" aria-pressed="false"><img data-ui="rope" alt="">Bridge<kbd>R</kbd></button>
+      <button class="px dk" type="button" data-tool="cut" aria-pressed="false"><img data-ui="cut" alt="">Untie<kbd>C</kbd></button></div>
     <div class="grp"><span class="gl">view</span>
       <button class="px dk" type="button" data-view="planet" aria-pressed="true"><img data-ui="city" alt="">City<kbd>1</kbd></button>
       <button class="px dk" type="button" data-view="system" aria-pressed="false"><img data-ui="system" alt="">System<kbd>2</kbd></button>
@@ -43,10 +41,10 @@
     <div id="left">
       <div id="stage">
         <div id="mapbox">
-          <canvas id="map" width="320" height="200" aria-label="Floating islands and a planet linked by rope bridges, with walkers carrying goods between them."></canvas>
+          <canvas id="map" width="320" height="200" aria-label="Floating islands above a planet, linked by plank bridges, with walkers carrying goods between them."></canvas>
           <canvas id="names" aria-hidden="true"></canvas>
           <div id="tags" aria-hidden="true"></div>
-          <div class="price" id="price" aria-live="polite"></div>
+          <div id="card" class="px" hidden role="dialog" aria-label="Choose what grows here"></div>
           <span id="catch">catching up…</span>
           <div id="ask" class="px" hidden role="dialog" aria-label="Start a new map?">
             <h5><img data-ui="dice" alt="">Start a new map?</h5>
@@ -57,12 +55,12 @@
       </div>
       <div id="lines">
         <div class="guide" id="guide"></div>
-        <div class="stockrow" id="stock"></div>
         <div class="hint" id="hint"></div>
       </div>
     </div>
     <div id="side">
       <div class="view"><canvas id="view" width="200" height="120" aria-label="A close-up of the selected place."></canvas><span class="lbl" id="vlbl">tiny garden</span><span class="lbl day" id="vday">day 1</span></div>
+      <div id="tray" hidden aria-label="Gifts waiting for a spot"></div>
       <div id="panel"></div>
     </div>
   </div>

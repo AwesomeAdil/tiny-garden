@@ -12,17 +12,17 @@ import { sysPlanets } from './sim/system.js';
 import { W, H } from './sim/content.js';
 import { viewScale, worldView } from './core/pixel.js';
 import { VIEWS } from './ui/esc.js';
-import { bg } from './draw/scene.js';
+import { skyLayer, twinkle } from './draw/kit.js';
 import { drawCity } from './draw/city.js';
 import { drawSystem } from './draw/system.js';
-import { drawGalaxy, galInvalidate, GSYS } from './draw/galaxy.js';
+import { drawGalaxy, galInvalidate, galPanFor, GSYS } from './draw/galaxy.js';
 import { planetView, islandView, dawn } from './draw/closeup.js';
 import { renderTags, invalidateTags } from './ui/tags.js';
-import { renderPrice } from './ui/price.js';
-import { renderPanel, renderStock, wirePanel } from './ui/panel.js';
+import { renderPanel, wirePanel } from './ui/panel.js';
 import { renderGuide, idleHint, drainEvents } from './ui/guide.js';
 import { wireDock, syncDock, setSpeed, askNewMap } from './ui/dock.js';
 import { wireInput } from './ui/input.js';
+import { wireCard, openCard, closeCard, renderTray } from './ui/card.js';
 import { PixCtx } from './core/pixctx.js';
 
 const SAVE_MS = 30000;
@@ -39,13 +39,15 @@ const bridge = () => window.webkit?.messageHandlers?.garden;
 const post = msg => { try { bridge()?.postMessage(msg) } catch (e) { /* no host */ } };
 const native = !!bridge();
 
-const els = { sky: $('sky'), stage: $('stage'), mapbox: $('mapbox'), map: $('map'), names: $('names'), tags: $('tags'), price: $('price'), catch: $('catch'), ask: $('ask'),
-  side: $('side'), view: $('view'), vlbl: $('vlbl'), vday: $('vday'), panel: $('panel'), dock: $('dock'), shopbtn: $('shopbtn'), newbtn: $('newbtn'), guide: $('guide'), stock: $('stock'), hint: $('hint') };
+const els = { sky: $('sky'), stage: $('stage'), mapbox: $('mapbox'), map: $('map'), names: $('names'), tags: $('tags'), card: $('card'), catch: $('catch'), ask: $('ask'),
+  side: $('side'), view: $('view'), vlbl: $('vlbl'), vday: $('vday'), tray: $('tray'), panel: $('panel'), dock: $('dock'), newbtn: $('newbtn'), guide: $('guide'), hint: $('hint') };
 
 const app = {
-  game: null, mode: 'wallpaper', tool: 'move', shop: false, drag: null, pointer: null, t: 0, panelKey: '', namesKey: '', nameU: 2, hintUntil: 0, asking: false, catching: false,
+  game: null, mode: 'wallpaper', tool: 'move', drag: null, pointer: null, armedGift: null, card: null, t: 0, panelKey: '', namesKey: '', nameU: 2, hintUntil: 0, asking: false, catching: false,
   els, mapCtx: els.map.getContext('2d'), viewCtx: els.view.getContext('2d'),
   get w() { return this.game.worlds[this.game.ui.world] || this.game.worlds[0] },
+  // The city's world-to-canvas map at the current canvas size (input hit tests use the same one drawCity does).
+  cityView: () => ({ w: art.w, h: art.h, ...worldView(art.w, art.h) }),
   exit: () => native ? post({ type: 'exit' }) : setMode('wallpaper'),
   newMap: () => { post({ type: 'new-map' }); start(newGame(randSeed()), 'play', Date.now()); save() },
 };
@@ -78,7 +80,7 @@ function tick() {
     drainEvents(app);
 
     const p = performance.now(), play = app.mode === 'play'; app.t = (p - t0) / 1000;
-    if (p - lastDraw >= (play ? 50 : WALL_MS) - 4) { lastDraw = p; drawMain(); if (play) renderPrice(app) }
+    if (p - lastDraw >= (play ? 50 : WALL_MS) - 4) { lastDraw = p; drawMain() }
     if (play && p - lastView >= 110) { lastView = p; drawView() }
     if (p - lastPanel >= (play ? 250 : 1000) - 4) { lastPanel = p; renderSlow() }
     if (now - lastSave >= SAVE_MS) save();
@@ -92,22 +94,21 @@ function schedule() {
 function unschedule() { if (raf) cancelAnimationFrame(raf); if (timer) clearTimeout(timer); raf = timer = 0 }
 
 // ---------- drawing ----------
-// The play-mode city draws straight into #map (320x200). Every other view, and the whole wallpaper, is drawn
-// in JS (PixCtx) at the view's own size, and only a frame whose pixels changed is put into #map.
-// The same buffer is what the galaxy and system names are placed around (ui/tags.js renderNames).
+// Every view, in both modes, is drawn in JS (PixCtx) at the view's own canvas size (layout below), and only a
+// frame whose pixels changed is put into #map. The same buffer is what the galaxy and system names are placed
+// around (ui/tags.js renderNames).
 const art = { pix: null, prev: null, w: 0, h: 0, s: 1, view: null };
 app.art = art;
 
 function drawMain(force = false) {
   const game = app.game, ui = game.ui, w = app.w, t = app.t, play = app.mode === 'play', v = ui.view;
-  {
-    const c = art.pix;
-    if (v === 'galaxy') { if (!play) galInvalidate(c); drawGalaxy(c, t, play ? ui.galSel : null, play ? t : Math.floor(t * GAL_WALL_STEP) / GAL_WALL_STEP * GAL_WALL_SPIN, art.w, art.h) }
-    else if (v === 'system') drawSystem(c, game, t, play ? ui.sysSel : null, art.w, art.h);
-    else if (v === 'close') { const n = closeSubject(w), rt = play ? Math.floor(t * 2) / 2 : Math.floor(t / DAWN_STEP) * DAWN_STEP; if (n) islandView(c, w, n, t, art.w, art.h, rt); else planetView(c, game, w, t, art.w, art.h) }
-    else drawCity(c, game, w, t, { w: art.w, h: art.h, ...worldView(art.w, art.h) }, play ? { drag: app.drag, pointer: app.pointer, tool: app.tool } : null);
-    art.view = v; present(force);
-  }
+  const c = art.pix;
+  // Neighbour galaxies are hidden in wallpaper mode (galPanFor gives null there, the play pan otherwise).
+  if (v === 'galaxy') { if (!play) galInvalidate(c); drawGalaxy(c, t, play ? ui.galSel : null, play ? t : Math.floor(t * GAL_WALL_STEP) / GAL_WALL_STEP * GAL_WALL_SPIN, art.w, art.h, galPanFor(app.mode, game)) }
+  else if (v === 'system') drawSystem(c, game, t, play ? ui.sysSel : null, art.w, art.h);
+  else if (v === 'close') { const n = closeSubject(w), rt = play ? Math.floor(t * 2) / 2 : Math.floor(t / DAWN_STEP) * DAWN_STEP; if (n) islandView(c, w, n, t, art.w, art.h, rt); else planetView(c, game, w, t, art.w, art.h) }
+  else drawCity(c, game, w, t, app.cityView(), play ? { drag: app.drag, pointer: app.pointer, tool: app.tool, armedGift: app.armedGift, card: app.card } : null);
+  art.view = v; present(force);
   const p = performance.now(); if (play || p - lastSky >= SKY_MS - 4) { lastSky = p; drawSky(t) }
 }
 function present(force) {
@@ -115,12 +116,14 @@ function present(force) {
   for (let i = 0; !changed && i < px.length; i++) if (px[i] !== prev[i]) changed = true;
   if (changed) { prev.set(px); app.mapCtx.putImageData(art.pix.img, 0, 0) }
 }
-// The close-up shows the world's selected island if it has been found, otherwise its town square.
-function closeSubject(w) { const S = w.S, n = S.sel && S.sel.t === 'node' ? node(w, S.sel.id) : null; return n && n.kind === 'island' && S.found.has(n.id) ? n : null }
+// The close-up shows the world's selected island, otherwise its town.
+function closeSubject(w) { const S = w.S, n = S.sel && S.sel.t === 'node' ? node(w, S.sel.id) : null; return n && n.kind === 'island' ? n : null }
 
 // The sky around the map: the map's own starfield, tiled so its pixel grid lines up with the map's.
+// (A flat-coloured kit starfield, so the tile has no gradient to show its seams.)
 function drawSky(t) {
-  bg(tileCtx, W, H, t, 70);
+  const L = skyLayer(W, H, 70, { top: '#14151f', bot: '#14151f' });
+  tileCtx.putImageData(L.img, 0, 0); twinkle(tileCtx, L.tw, t);
   const c = skyCtx, cw = els.sky.width, ch = els.sky.height, ox = ((sky.mx % W) + W) % W - W, oy = ((sky.my % H) + H) % H - H;
   for (let y = oy; y < ch; y += H) for (let x = ox; x < cw; x += W) c.drawImage(tile, x, y);
 }
@@ -139,9 +142,9 @@ function drawView() {
     else { dawn(c, t); setText(els.vlbl, (p ? p.full : 'the system') + ' · not reached yet') }
     return setText(els.vday, day(game.worlds[0].S.time));
   }
-  const n = S.sel.t === 'node' ? node(w, S.sel.id) : null;
-  if (!n || n.kind === 'planet' || !S.found.has(n.id)) { planetView(c, game, w, t); setText(els.vlbl, w.def.full + ' · town square') }
-  else { islandView(c, w, n, t); setText(els.vlbl, w.def.isl[n.id].name.toLowerCase() + ' · level ' + n.level) }
+  const n = closeSubject(w);
+  if (!n) { planetView(c, game, w, t); setText(els.vlbl, w.def.full + ' · the town') }
+  else { islandView(c, w, n, t); setText(els.vlbl, (n.name || w.def.isl[n.id].name).toLowerCase() + ' · stage ' + n.stage) }
   setText(els.vday, day(S.time));
 }
 
@@ -149,10 +152,10 @@ function renderSlow() {
   const game = app.game, v = game.ui.view, play = app.mode === 'play';
   renderTags(app);
   els.catch.classList.toggle('on', app.catching);
-  if (play) { renderPanel(app); renderStock(app); renderGuide(app); idleHint(app) }
+  if (play) { renderPanel(app); renderTray(app); renderGuide(app); idleHint(app) }
 }
 
-function renderAll() { lastDraw = lastView = lastPanel = lastSky = -1e9; app.panelKey = ''; app.namesKey = ''; invalidateTags(app); galInvalidate(art.pix); drawMain(true); if (app.mode === 'play') { drawView(); renderPrice(app) } renderSlow() }
+function renderAll() { lastDraw = lastView = lastPanel = lastSky = -1e9; app.panelKey = ''; app.namesKey = ''; invalidateTags(app); galInvalidate(art.pix); drawMain(true); if (app.mode === 'play') drawView(); renderSlow() }
 
 // ---------- scaling ----------
 // Each view picks its canvas size and whole-number scale from the stage, counted in device pixels
@@ -167,7 +170,7 @@ function layout() {
   art.s = s;
   const mw = w * s, mh = h * s, ox = Math.floor((dW - mw) / 2), oy = Math.floor((dH - mh) / 2);
   Object.assign(els.mapbox.style, { left: ox / dpr + 'px', top: oy / dpr + 'px', width: mw / dpr + 'px', height: mh / dpr + 'px' });
-  // Overlay text (tags, price) keeps the city's size in every view, so it doesn't jump on a view switch.
+  // Overlay text (tags, the pick card) keeps the city's size in every view, so it doesn't jump on a view switch.
   root.setProperty('--inset', (app.mode === 'play' ? 0 : Math.max(0, topInset - r.top - oy / dpr)) + 'px');
   // The finer world scale is for the pixel art, not UI text: overlay text keeps v1's size from the old city scale.
   const uiScale = Math.max(1, Math.floor(Math.min(dW / 320, dH / 200))); root.setProperty('--s', String(Math.max(1, Math.ceil(uiScale / 2 - .5)) / dpr));
@@ -197,7 +200,7 @@ function setMode(m) {
   m = m === 'play' ? 'play' : 'wallpaper';
   app.mode = m; document.body.classList.toggle('wallpaper', m !== 'play');
   if (!app.game) return;
-  if (m !== 'play') { setSpeed(app, 1); app.drag = null; app.pointer = null; askNewMap(app, false); renderPrice(app) }
+  if (m !== 'play') { setSpeed(app, 1); app.drag = null; app.pointer = null; app.armedGift = null; closeCard(app); askNewMap(app, false) }
   unschedule(); layout(); renderAll(); layout(); renderAll(); save(); schedule();
 }
 
@@ -208,7 +211,7 @@ function start(game, mode, nowMs) {
   ui.speed = 1; ui.pri = ui.pri || 'auto'; if (typeof ui.names !== 'boolean') ui.names = true;
   if (!ui.firstSeen) ui.firstSeen = nowMs;
   clock = startClock(nowMs, game.savedAt || nowMs); clock.lastMs = Date.now(); lastSave = clock.lastMs;
-  Object.assign(app, { game, tool: 'move', shop: false, drag: null, pointer: null, panelKey: '', hintUntil: 0 });
+  Object.assign(app, { game, tool: 'move', drag: null, pointer: null, armedGift: null, panelKey: '', hintUntil: 0 }); closeCard(app); els.tray.dataset.last = '';
   game.worlds.forEach(w => { w.events.length = 0 });
   syncDock(app); setMode(mode);
 }
@@ -235,7 +238,7 @@ window.garden = {
 };
 
 // ---------- wiring ----------
-wireDock(app); wirePanel(app); wireInput(app);
+wireDock(app); wirePanel(app); wireInput(app); wireCard(app);
 document.addEventListener('contextmenu', e => e.preventDefault());
 // Re-fit whenever the stage or side column changes size (window resize, mode switch, a line wrapping).
 new ResizeObserver(() => { if (app.game) { layout(); renderAll() } }).observe(els.stage);
@@ -253,6 +256,9 @@ else {
   if (q.has('n')) { const w = game.worlds[game.ui.world]; if (node(w, q.get('n'))) w.S.sel = { t: 'node', id: q.get('n') } }
   game.savedAt = Date.now();
   start(game, q.get('mode') === 'wallpaper' ? 'wallpaper' : 'play', Date.now());
+  // Dev: gifts=N puts N gifts in the tray; card=<islandId>:<spot> opens the pick card (for shots).
+  if (q.has('gifts')) { for (let i = 0; i < Math.min(3, +q.get('gifts') || 0); i++) game.gifts.push({ id: 900 + i, kind: ['coral', 'hut', 'banner'][i], variant: i, ...(i === 1 ? { name: 'MIRA' } : {}) }); renderTray(app) }
+  if (q.has('card')) { const [id, i] = q.get('card').split(':'), w = app.w, n = node(w, id); if (n) openCard(app, w, n, +i) }
   if (q.get('dump') === '1') setTimeout(dump, 1500);
 }
 

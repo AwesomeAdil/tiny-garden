@@ -87,6 +87,21 @@ test('nodeAt finds islands and the town in world units', () => {
   for (const n of isl(w)) assert.equal(nodeAt(w, { x: v.ox + n.x * v.k, y: v.oy + (n.y + 2) * v.k }, v), n, n.id + ' (canvas)');
 });
 
+test('nodeAt hits the hub where it is drawn, at every canvas size', async () => {
+  const { townLayout, hubSprite, HUB_HW } = await import('../web/js/draw/city.js');
+  const game = skip(newGame(3)), w = game.worlds[0], hub = node(w, 'planet'), I = hubSprite();
+  for (const [W, H] of [[1146, 480], [756, 472], [344, 144]]) {
+    const v = view(W, H), T = townLayout(v, w.hub.stage), cx = T.H.cx, top = T.hubTop, mid = top + (I.depth >> 1);
+    assert.equal(nodeAt(w, { x: cx, y: mid }, v), hub, `${W}x${H} centre`);
+    assert.equal(nodeAt(w, { x: cx - HUB_HW + 2, y: top + 2 }, v), hub, `${W}x${H} left edge`);
+    assert.equal(nodeAt(w, { x: cx + HUB_HW - 2, y: top + 2 }, v), hub, `${W}x${H} right edge`);
+    assert.equal(nodeAt(w, { x: cx, y: top + Math.round(I.depth * .6) }, v), hub, `${W}x${H} low on the rock`);
+    assert.notEqual(nodeAt(w, { x: cx - HUB_HW + 1, y: top + I.depth }, v), hub, `${W}x${H} below the rock's tapered corner`);
+    assert.equal(nodeAt(w, { x: cx, y: top - 6 }, v), hub, `${W}x${H} the houses on top`);
+    assert.notEqual(nodeAt(w, { x: cx + HUB_HW + 12, y: top + 2 }, v), hub, `${W}x${H} beside the rock`);
+  }
+});
+
 test('islands are drawn natively at the view scale', async () => {
   const { getSprite, STAGE_F, bandOf } = await import('../web/js/draw/kit.js');
   const { ISLAND_HW } = await import('../web/js/sim/content.js');
