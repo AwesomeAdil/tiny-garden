@@ -1,40 +1,46 @@
-// Dev helpers (page 38 autoNet and skip). Used by tests and index.html's ?skip=1; not part of normal play.
-import { RES } from '../core/palette.js';
-import { MAXR } from './content.js';
-import { dist, node, isl, tie } from './world.js';
-import { cross } from './graph.js';
-import { ropesAt, slots } from './economy.js';
+// Dev helpers (tests, ?skip=1 and shots). Not part of normal play.
+import { dist, isl, canTie, tie } from './world.js';
+import { SPOTS } from './picks.js';
+import { offers, choose } from './grow.js';
 import { stepAll } from './system.js';
-import { launch } from './shop.js';
+import { growTown, CABLE_COST } from './town.js';
 
-// Greedy nearest-reachable tie loop, respecting slots and crossings.
+const closest = (w, ok) => {
+  let best = null, bd = Infinity;
+  for (const a of w.S.nodes) for (const b of w.S.nodes) {
+    if (a.id === b.id || !ok(a, b) || !canTie(w, a, b).ok) continue;
+    const d = dist(a, b);
+    if (d < bd) { bd = d; best = [a, b] }
+  }
+  return best;
+};
+
+// Greedy: tie the nearest unconnected island to the connected set, then up to 4 extra ropes for redundancy.
 export function autoNet(w) {
-  const S = w.S, done = new Set(['planet', ...S.ropes.flatMap(r => [r.a, r.b])]);
-  for (let g = 0; g < 8; g++) {
-    let best = null, bd = 1e9;
-    S.nodes.forEach(a => {
-      if (!done.has(a.id) || ropesAt(w, a.id) >= slots(a)) return;
-      S.nodes.forEach(b => {
-        if (done.has(b.id)) return;
-        const d = dist(a, b);
-        if (d <= MAXR && d < bd && !S.ropes.some(r => r.a !== a.id && r.b !== a.id && r.a !== b.id && r.b !== b.id && cross(a, b, node(w, r.a), node(w, r.b)))) { bd = d; best = [a, b] }
-      });
-    });
-    if (!best) break;
-    tie(w, best[0], best[1]); done.add(best[1].id);
+  const on = new Set([w.hub.id]);
+  for (const r of w.S.ropes) { on.add(r.a); on.add(r.b) }
+  for (let p; (p = closest(w, (a, b) => on.has(a.id) && !on.has(b.id)));) { tie(w, p[0], p[1]); on.add(p[1].id) }
+  for (let i = 0, p; i < 4 && (p = closest(w, () => true)); i++) tie(w, p[0], p[1]);
+}
+
+// Chooses the first offer at every open, unused spot (not spot 4), skipping `sends` picks.
+export function autoPick(w) {
+  for (const n of isl(w)) for (let i = 0; i < SPOTS.length; i++) {
+    if (i === 4 || n.stage < SPOTS[i].opensAt || n.spots[i]) continue;
+    const o = offers(w, n, i).find(p => !p.sends);
+    if (o) choose(w, n, i, o.id);
   }
 }
 
-// Skip ahead: world 0 networked, every island found at level 3, stock topped up to its goal,
-// the cable launched, then 30 s of play.
+// World 0 networked, islands at stage 3 and picked, the cable paid, then 30 s of play.
 export function skip(game) {
-  const w = game.worlds[0], S = w.S, hub = w.hub;
+  const w = game.worlds[0];
   autoNet(w);
-  isl(w).forEach(n => { S.found.add(n.id); n.level = 3 });
-  S.time = Math.max(S.time, 600);
-  RES.forEach(k => hub.stock[k] += 12);
-  Object.keys(w.def.goal).forEach(k => hub.stock[k] = Math.max(hub.stock[k], w.def.goal[k]));
-  launch(game, w); hub.stock.rock += 20;
+  isl(w).forEach(n => { n.stage = 3 });
+  autoPick(w);
+  w.hub.stage = 4;
+  for (const k of Object.keys(w.hub.paid)) w.hub.paid[k] = CABLE_COST;
+  growTown(game, w);
   for (let i = 0; i < 300; i++) stepAll(game, .1);
   return game;
 }

@@ -1,19 +1,18 @@
 import { WORLD_DEFS } from './content.js';
-import { makeWorld, node, tie } from './world.js';
+import { makeWorld } from './world.js';
 import { stepAll } from './system.js';
 
 const STEP = .1, MAX_GAP = 43200;
 
 export function freshWorld(def, seed, started) {
   const w = makeWorld(def, seed + def.seedOffset);
-  tie(w, w.hub, node(w, def.start));
   w.started = started;
   return w;
 }
 
 export function newGame(seed, defs = WORLD_DEFS, savedAt = 0) {
   const worlds = defs.map((def, i) => freshWorld(def, seed, i === 0));
-  return { seed, worlds, cables: [], ui: { view: 'planet', world: 0, speed: 1, pri: 'auto', sysSel: null, galSel: null, names: true }, savedAt };
+  return { seed, worlds, cables: [], gifts: [], ui: { view: 'planet', world: 0, speed: 1, sysSel: null, galSel: null, names: true }, savedAt };
 }
 
 // Steps realSec (x speed in play mode) in 0.1 s sub-steps.
