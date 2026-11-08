@@ -162,6 +162,12 @@ export function oceanSurf(seed) {
   return (u, v) => { const X = u * MW + Wd.cityX, Y = v * MH, e = Wd.field(X, Y); let col = tideSurface(Wd, X, Y, e, (u * 97) | 0, (v * 97) | 0); if (tideCloud(Wd, X, Y) > .68) col = CLOUD; return col };
 }
 
+// The game seed behind a world, for views handed only the world (the island close-up): noted by any view that is
+// handed the game (the city, the town square). 0 until then.
+const SEEDS = new WeakMap();
+export const noteSeed = (game, w) => { if (game && w) SEEDS.set(w, game.seed | 0) };
+export const seedOf = w => SEEDS.get(w) ?? 0;
+
 // A big planet disc: TIDE's world for o.seed laid along the curve (foreshortened below the horizon), a 1 px sand
 // coast, clouds, a lit rim (o.rim px wide, default 4.5% of r), a thin atmosphere halo and a dithered night side.
 export function planetLayer(c, W, H, cx, cy, r, fx = 1, fy = 1, o = {}) {

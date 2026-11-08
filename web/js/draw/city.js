@@ -16,7 +16,7 @@ import { MAXR, TOWN } from '../sim/content.js';
 import { node, isl, dist, canTie } from '../sim/world.js';
 import { pierSide } from '../sim/grow.js';
 import { SPOTS } from '../sim/picks.js';
-import { CR, STY, makeIsland, BANDS, islandHW, bandFor, skyLayer, twinkle, sun, planetLayer, glowAt, lamp, PROPS, getSprite, drawIsland, SPOT_X, span, plank, along, pier, pierGlow, astro, hazed, isleBob, depthFor } from './kit.js';
+import { CR, STY, makeIsland, BANDS, islandHW, bandFor, skyLayer, twinkle, sun, planetLayer, glowAt, lamp, PROPS, getSprite, drawIsland, SPOT_X, span, plank, along, pier, pierGlow, astro, hazed, isleBob, depthFor, noteSeed } from './kit.js';
 import { drawEvent } from './events.js';
 
 const S = STY.book, IDLE = '#494d64', BAND_ORDER = ['far', 'mid', 'near'];
@@ -57,9 +57,22 @@ export function townLayout(view, stage) {
   return { H, houses, lamps, half: half + 6, hubTop };
 }
 
+// The town on its rock as one transparent sprite, for the town-square close-up: {px, w, h, ox, oy (the rock's
+// top-centre), lamps (in sprite pixels)}. One per stage.
+const TOWNS = new Map();
+export function townSprite(stage) {
+  const st = clamp(stage | 0, 1, 4); let T = TOWNS.get(st); if (T) return T;
+  const I = hubSprite(), px = new PixCtx(I.w, I.h, { transparent: true }), L = townLayout({ w: I.w, h: I.h, k: 1, ox: I.ox - TOWN.x, oy: I.oy + HUB_RISE - TOWN.y }, st);
+  px.blit(I.px, 0, 0);
+  for (const h of L.houses) townHouse(px, h.x, h.y, h.h, h.rf);
+  for (const l of L.lamps) lamp(px, l.x, l.y, S);
+  T = { px, w: I.w, h: I.h, ox: I.ox, oy: I.oy, lamps: L.lamps }; TOWNS.set(st, T); return T;
+}
+
 // ---------- the cached background ----------
 const BGS = new Map();
 export function cityBackground(game, w, view) {
+  noteSeed(game, w);
   const W = view.w, Hh = view.h, stage = w.hub.stage, key = [W, Hh, view.k || 1, view.ox, view.oy, w.def.key, game.seed | 0, skySeed(game, w), stage].join();
   let B = BGS.get(key); if (B) return B;
   const px = new PixCtx(W, Hh), L = citySky(game, w, W, Hh), T = townLayout(view, stage), H = T.H;
