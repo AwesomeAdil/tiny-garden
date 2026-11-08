@@ -113,3 +113,13 @@ test('a dragged island takes the band of its new y', async () => {
   n.band = 'far'; assert.equal(bandFor(n), 'near', 'a stray band field is ignored');
   drawCity(new PixCtx(1146, 480), game, w, 1, view(1146, 480), null);
 });
+
+test('close-ups draw on the kit and never write to the game or show goods', async () => {
+  const { islandView, planetView } = await import('../web/js/draw/closeup.js');
+  const game = skip(newGame(3)), w = game.worlds[0], before = JSON.stringify(serialize(game, 0)), n = isl(w)[0];
+  const draw = (g, ww, nn) => { const a = new PixCtx(1146, 480), b = new PixCtx(344, 144); islandView(a, ww, nn, 3, 1146, 480); planetView(b, g, ww, 3, 344, 144); return a };
+  const base = draw(game, w, n);
+  assert.equal(JSON.stringify(serialize(game, 0)), before);
+  const full = deserialize(trip(serialize(skip(newGame(3)), 0))); for (const m of isl(full.worlds[0])) { m.out = { water: 6, light: 6, stone: 6 }; m.stock = { water: 9, light: 9, stone: 9 } }
+  assert.ok(Buffer.from(draw(full, full.worlds[0], isl(full.worlds[0])[0]).d).equals(Buffer.from(base.d)), 'stock changed the picture');
+});

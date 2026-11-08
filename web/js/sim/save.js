@@ -90,6 +90,7 @@ export function deserialize(obj, defs = WORLD_DEFS) {
     const cables = obj.cables.map(cb => ({ a: remap(cb.a), b: remap(cb.b) }));
     obj.ui.world = Math.max(0, remap(obj.ui.world));
     if (typeof obj.ui.names !== 'boolean') obj.ui.names = true;
+    if (!obj.ui.galPan || !num(obj.ui.galPan.x) || !num(obj.ui.galPan.y)) obj.ui.galPan = { x: 0, y: 0 };
     const gifts = obj.gifts.filter(goodGift), ev = cleanEv(obj.ev);
     if (!ev) return null;
     return { seed: obj.seed, worlds, cables, gifts, ev, ui: obj.ui, savedAt: typeof obj.savedAt === 'number' ? obj.savedAt : 0 };

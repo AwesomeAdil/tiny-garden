@@ -43,3 +43,38 @@ test('stepAll skips worlds that have not started', () => {
   stepAll(g, .1);
   assert.equal(g.worlds[1].S.time, 0);
 });
+
+// ---------- arcs around the sun ----------
+const { arcPath, sysView, sysXY } = await import('../web/js/draw/system.js');
+const { rngf } = await import('../web/js/core/pixel.js');
+const minDist = (pts, s) => Math.min(...pts.map(([x, y]) => Math.hypot(x - s[0], y - s[1])));
+
+test('arcPath never passes near the sun', () => {
+  const r = rngf(5), sun = [573, 240], rSun = 14;
+  for (let i = 0; i < 200; i++) {
+    const a = r() * 6.283, b = i % 4 === 0 ? a + Math.PI : r() * 6.283, Ra = 60 + r() * 400, Rb = 60 + r() * 400;
+    const A = [sun[0] + Math.cos(a) * Ra, sun[1] + Math.sin(a) * Ra * .34], B = [sun[0] + Math.cos(b) * Rb, sun[1] + Math.sin(b) * Rb * .34];
+    const pts = arcPath(A, B, sun, rSun);
+    assert.deepEqual(pts[0], A); assert.deepEqual(pts.at(-1), B);
+    assert.ok(minDist(pts, sun) >= rSun + 6 - 1e-6, `pair ${i}: ${minDist(pts, sun)}`);
+  }
+  // directly opposite on the horizontal line through the sun
+  assert.ok(minDist(arcPath([100, 240], [1046, 240], sun, rSun), sun) >= rSun + 6);
+});
+
+test('arcPath bows gently when the line is clear', () => {
+  const sun = [300, 300], A = [100, 100], B = [500, 100], pts = arcPath(A, B, sun, 12), L = 400;
+  const mid = pts[Math.floor(pts.length / 2)], bow = Math.abs(mid[1] - 100);
+  // a quadratic's midpoint sits half the control offset off the chord: .15 L / 2
+  assert.ok(Math.abs(bow - .075 * L) < 1.5, `bow ${bow}`);
+  assert.ok(mid[1] < 100, 'it bows away from the sun');
+  assert.ok(pts.length >= L * .9, 'about a point a pixel');
+});
+
+test('the planets at opposite sides of the sun get an arc that clears it', () => {
+  const v = sysView(1146, 480), g = newGame(1), ps = sysPlanets(g), sun = [v.cx, v.cy];
+  for (const a of [0, 1, 2, 3, 4, 5, 6]) {
+    const A = sysXY(v, { ...ps[0], a }, 0), B = sysXY(v, { ...ps[1], a: a + Math.PI }, 0);
+    assert.ok(minDist(arcPath(A, B, sun, 14), sun) >= 20);
+  }
+});

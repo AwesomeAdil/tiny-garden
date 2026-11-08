@@ -1,12 +1,14 @@
 // The solar system, "D3 + Dusk" (page 43), at any canvas size: a flatter tilted orbital plane, long-exposure
-// orbit trails, the glass cable, and a dithered teal-blue dusk around the sun. Nothing sits around the planets.
+// orbit trails, the cables (thin dotted threads that bow around the sun, page 45 sc-arc), and a dithered
+// teal-blue dusk around the sun, over the kit's starfield. Nothing sits around the planets.
 // The sim keeps its own orbit space (centred on [160,100], see sim/system.js); only the drawing is transformed.
 // Orbit time is world 0's S.time; t is wall-clock animation time. Never writes to the game.
 import { TAU, SP, P, B8, mix, rgb, u32, rngf, clamp } from '../core/pixel.js';
 import { COL, SURF, KD, R_CORE, R_DUSK, ORBIT } from '../core/palette.js';
-import { sysPlanets, cableGeom } from '../sim/system.js';
+import { sysPlanets } from '../sim/system.js';
+import { skyLayer, twinkle, A } from './kit.js';
 
-const GT = game => game.worlds[0].S.time;
+const SKY_BG = '#161722', GT = game => game.worlds[0].S.time;
 // The plane: ratio .34, rolled -0.1 rad. Orbit scale 1.6 at 688x288, fitted to the canvas otherwise.
 const RATIO = .34, ROLL = -.1, K0 = 1.6, SUN_R = 10;
 export const sysView = (W, H) => ({ W, H, cx: Math.floor(W / 2), cy: Math.floor(H / 2), k: K0 * Math.min(W / 688, H / 288), sr: Math.sin(ROLL), cr: Math.cos(ROLL) });
@@ -23,21 +25,23 @@ const mx = (a, b, t) => { const k = a + b + t; let v = MX.get(k); if (v === unde
 // Dusk pushes each surface colour away from its own grey by 1.25.
 const sat = c => { let v = SATC.get(c); if (v === undefined) { const q = rgb(c), m = (q[0] + q[1] + q[2]) / 3; v = '#' + q.map(x => Math.round(clamp(m + (x - m) * 1.25, 0, 255)).toString(16).padStart(2, '0')).join(''); SATC.set(c, v) } return v };
 
-// The dusk, the sun's corona and a seeded starfield: static for a given size, so built once and copied in.
-const BACK = new Map();
-function backdrop(v) {
-  const key = v.W + 'x' + v.H; if (BACK.has(key)) return BACK.get(key);
-  const { W, H, cx, cy } = v, img = new ImageData(W, H), px = new Uint32Array(img.data.buffer), sr = Math.max(4, Math.round(SUN_R * v.k / K0)), cor = sr * 3.3;
+// The kit's starfield with a dithered dusk and the sun's corona laid over it: static for a given size and seed, so
+// built once and copied in. Fixed stars and stardust show through wherever the dusk is pure space; the twinkling
+// stars outside the corona are kept for each frame.
+const BACK = new Map(), STAR_PX = [u32('#2a2d42'), u32('#3b3f55')];
+function backdrop(v, seed) {
+  const key = v.W + 'x' + v.H + ':' + seed; if (BACK.has(key)) return BACK.get(key);
+  const { W, H, cx, cy } = v, L = skyLayer(W, H, seed), img = new ImageData(W, H), px = new Uint32Array(img.data.buffer), sr = Math.max(4, Math.round(SUN_R * v.k / K0)), cor = sr * 3.3;
+  px.set(L.px.px);
   for (let y = 0, i = 0; y < H; y++) for (let x = 0; x < W; x++, i++) {
-    const b = B8[(y & 7) * 8 + (x & 7)], d = Math.hypot((x - cx) / (W / 2), (y - cy) / (H / 2)), val = Math.pow(Math.max(0, 1 - d / 1.25), 1.6);
-    px[i] = R_DUSK[Math.min(R_DUSK.length - 1, Math.floor(val * (R_DUSK.length - 1) + b))];
+    const b = B8[(y & 7) * 8 + (x & 7)], d = Math.hypot((x - cx) / (W / 2), (y - cy) / (H / 2)), val = Math.pow(Math.max(0, 1 - d / 1.25), 1.6), keep = px[i] === STAR_PX[0] || px[i] === STAR_PX[1];
+    const k0 = Math.min(R_DUSK.length - 1, Math.floor(val * (R_DUSK.length - 1) + b)); if (k0 > 0 && !keep) px[i] = R_DUSK[k0];
     const ds = Math.hypot(x - cx, y - cy);
     if (ds > sr && ds < cor) { const q = (ds - sr) / (cor - sr), c = Math.pow(1 - q, 2) * (.9 + .1 * Math.cos(6 * Math.atan2(y - cy, x - cx))), k = Math.floor(c * 3.4 + b); if (k > 0) px[i] = R_CORE[Math.min(3, k)] }
   }
-  const r = rngf(77), n = Math.round(W * H * 90 / 64000), hi = u32('#cad3f5'), lo = u32('#494d64');
-  for (let s = 0; s < n; s++) { const x = Math.floor(r() * W), y = Math.floor(r() * H), c = r() > .72 ? hi : lo; if (Math.hypot(x - cx, y - cy) > cor) px[y * W + x] = c }
-  const o = { img, sr }; BACK.set(key, o); return o;
+  const o = { img, sr, tw: L.tw.filter(s => Math.hypot(s.x - cx, s.y - cy) > cor) }; BACK.set(key, o); if (BACK.size > 6) BACK.delete(BACK.keys().next().value); return o;
 }
+const skySeed = game => ((game.seed | 0) * 5 + 77) | 0;
 
 const disc = (c, x, y, R, col) => { for (let j = -R; j <= R; j++) { const w = Math.floor(Math.sqrt((R + .3) * (R + .3) - j * j)); P(c, col, x - w, y + j, 2 * w + 1, 1) } };
 
@@ -57,19 +61,27 @@ function planetD(c, p, x, y, r, t, sx, sy, dim, lift) {
   }
 }
 
-// A glass tube from A to B (wall + bore), drawn up to fraction `upto`.
-export function tube(c, A, B, wall, bore, upto = 1) {
-  const dx = B[0] - A[0], dy = B[1] - A[1], L = Math.hypot(dx, dy); if (L < 1) return; const ux = dx / L, uy = dy / L, px = -uy, py = ux, M = L * upto;
-  for (let k = 0; k <= M; k += .5) { const x = A[0] + ux * k, y = A[1] + uy * k; for (const o of [-1.5, -1, -.5, 0, .5, 1, 1.5]) P(c, bore, x + px * o, y + py * o); for (const o of [-2.5, 2.5]) P(c, wall, x + px * o, y + py * o) }
+// A cable from A to B that never crosses the sun at `sun` (radius rSun on the canvas): a quadratic Bezier whose
+// control point is pushed off the A-B line, away from the sun. It bows 0.15 L when the straight line is already
+// clear, and further only as much as it takes to keep every point at least rSun + 6 from the sun. About one
+// point per pixel.
+export function arcPath(A, B, sun, rSun, margin = 6) {
+  const dx = B[0] - A[0], dy = B[1] - A[1], L = Math.hypot(dx, dy) || 1, nx = -dy / L, ny = dx / L, mx = (A[0] + B[0]) / 2, my = (A[1] + B[1]) / 2;
+  const s = (sun[0] - mx) * nx + (sun[1] - my) * ny, side = s > .5 ? -1 : s < -.5 ? 1 : (ny <= 0 ? 1 : -1), need = rSun + margin;
+  const at = (d, f) => { const cx = mx + nx * side * d * 2, cy = my + ny * side * d * 2, g = 1 - f; return [g * g * A[0] + 2 * g * f * cx + f * f * B[0], g * g * A[1] + 2 * g * f * cy + f * f * B[1]] };
+  const clear = d => { for (let i = 0; i <= 200; i++) { const q = at(d, i / 200); if (Math.hypot(q[0] - sun[0], q[1] - sun[1]) < need + .25) return false } return true };
+  let d = .15 * L / 2; for (let i = 0; i < 2000 && !clear(d); i++) d += 1;
+  let len = 0, prev = A; for (let i = 1; i <= 24; i++) { const q = at(d, i / 24); len += Math.hypot(q[0] - prev[0], q[1] - prev[1]); prev = q }
+  const n = Math.max(8, Math.ceil(len)), out = []; for (let i = 0; i <= n; i++) out.push(at(d, i / n));
+  out[0] = [A[0], A[1]]; out[n] = [B[0], B[1]];
+  return out;
 }
-
-// The cargo pod in a tube at s; bright when it carries something.
-export function orb(c, A, B, s, col, full) { const x = Math.round(A[0] + (B[0] - A[0]) * s), y = Math.round(A[1] + (B[1] - A[1]) * s); if (full) { P(c, col, x - 1, y - 1, 3, 3); P(c, '#ffffff', x - 1, y - 1) } else { P(c, mix(col, '#14151f', .45), x - 1, y - 1, 3, 3); P(c, '#14151f', x, y) } }
+const CABLE = '#cad3f5';
 
 // sel is the selected planet's name (game.ui.sysSel) or null (always null in wallpaper).
 export function drawSystem(ctx, game, t, sel, W = 688, H = 288) {
-  const c = ctx, T = GT(game), SYSP = sysPlanets(game), v = sysView(W, H), back = backdrop(v), sx = v.cx, sy = v.cy;
-  c.putImageData(back.img, 0, 0);
+  const c = ctx, T = GT(game), SYSP = sysPlanets(game), v = sysView(W, H), back = backdrop(v, skySeed(game)), sx = v.cx, sy = v.cy;
+  c.putImageData(back.img, 0, 0); twinkle(c, back.tw, t);
   // Faint orbit dots, about every 6 px.
   SYSP.forEach(p => { const n = Math.max(24, Math.round(TAU * p.R * v.k / 6)); for (let i = 0; i < n; i++) { const a = i / n * TAU, q = planeXY(v, a, p.R); P(c, Math.sin(a) < 0 ? ORBIT.far : ORBIT.near, q[0], q[1]) } });
   // Long-exposure trails: 1.25 rad behind each planet, solid for the first quarter, then thinning out through B8.
@@ -81,6 +93,16 @@ export function drawSystem(ctx, game, t, sel, W = 688, H = 288) {
       P(c, Math.sin(a) < 0 ? far : near, X, Y);
     }
   });
+  // Cables go down before the sun and the planets, so nothing ever crosses either. A glint runs along one every
+  // 8 s while a walker is crossing either end world's bridges.
+  (game.cables || []).forEach(cb => {
+    const pts = arcPath(sysXY(v, SYSP[cb.a], T), sysXY(v, SYSP[cb.b], T), [sx, sy], back.sr), dot = mx(CABLE, SKY_BG, .5);
+    pts.forEach(([x, y], i) => { if ((i & 3) < 2) P(c, dot, x, y) });
+    if ([cb.a, cb.b].some(i => game.worlds[i] && game.worlds[i].S.ropes.some(r => r.dir !== 0))) {
+      const g = (t / 8) % 1, n = pts.length - 1;
+      for (let k = 0; k < 8; k++) { const q = pts[Math.max(0, Math.round(g * n) - k * 2)]; A(c, k ? '#8aadf4' : '#e3eafc', 1 - k / 8, q[0], q[1]) }
+    }
+  });
   const drawP = p => {
     const q = sysXY(v, p, T), on = p.w && p.w.started, fr = isFar(p, T), r = radius(v, p), lift = fr && p.lift ? p.lift : 0;
     const dim = 1 - (1 - (on ? 0 : .38)) * (1 - (fr && !lift ? .25 : 0));
@@ -90,10 +112,6 @@ export function drawSystem(ctx, game, t, sel, W = 688, H = 288) {
   };
   SYSP.filter(p => isFar(p, T)).forEach(drawP);
   disc(c, sx, sy, back.sr, KD.peach); disc(c, sx, sy, Math.max(1, Math.round(back.sr * .86)), KD.yellow); disc(c, sx, sy, Math.max(1, Math.round(back.sr * .58)), '#fffbf0');
-  (game.cables || []).forEach(cb => {
-    const g = cableGeom(game, cb), A = sysXY(v, SYSP[cb.a], T), B = sysXY(v, SYSP[cb.b], T);
-    tube(c, A, B, g.blocked ? '#ed8796' : '#8aadf4', g.blocked ? '#3a2430' : '#1a1c2b'); if (!g.blocked) orb(c, A, B, cb.u, cb.load.length ? COL[cb.load[0]] : '#8aadf4', cb.load.length > 0);
-  });
   SYSP.filter(p => !isFar(p, T)).forEach(drawP);
 }
 

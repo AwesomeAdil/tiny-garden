@@ -6,7 +6,7 @@ import { cross } from '../sim/graph.js';
 import { ropeCost, ropesAt, slots } from '../sim/economy.js';
 import { nodeAt, geomR } from '../draw/map.js';
 import { sysAt } from '../draw/system.js';
-import { galAt } from '../draw/galaxy.js';
+import { galAt, galClampPan } from '../draw/galaxy.js';
 import { renderPanel } from './panel.js';
 import { say } from './guide.js';
 import { setView, zoomTo } from './dock.js';
@@ -50,7 +50,8 @@ export function wireInput(app) {
   map.addEventListener('pointerdown', e => {
     if (app.mode !== 'play' || e.button !== 0) return;
     const p = toMap(map, e), game = app.game, view = game.ui.view; app.pointer = p;
-    if (view === 'galaxy') { const g = galAt(p, app.t); if (g) { game.ui.galSel = g.name; app.panelKey = ''; renderPanel(app); if (dbl(g.name) && g.ours) setView(app, 'system') } return }
+    // The galaxy: a drag pans it, a press that moves under 4 px is a click (select) on release.
+    if (view === 'galaxy') { app.drag = { kind: 'pan', sx: p.x, sy: p.y, ox: game.ui.galPan.x, oy: game.ui.galPan.y, moved: false }; map.setPointerCapture(e.pointerId); return }
     if (view === 'close') return; // the close-up is a picture: nothing on it to click
     if (view === 'system') { const q = sysAt(game, p, map.width, map.height); if (q) { game.ui.sysSel = q.name; app.panelKey = ''; renderPanel(app); if (dbl(q.name) && q.w && q.w.started) zoomTo(app, game.worlds.indexOf(q.w)) } return }
     const w = app.w, S = w.S, n = nodeAt(w, p);
@@ -63,7 +64,9 @@ export function wireInput(app) {
   map.addEventListener('pointermove', e => {
     if (app.mode !== 'play') return;
     const p = toMap(map, e); app.pointer = p;
-    const drag = app.drag; if (app.game.ui.view !== 'planet' || !drag || drag.kind !== 'move') return;
+    const drag = app.drag;
+    if (drag && drag.kind === 'pan') { if (!drag.moved && Math.hypot(p.x - drag.sx, p.y - drag.sy) < 4) return; drag.moved = true; app.game.ui.galPan = galClampPan({ x: drag.ox + p.x - drag.sx, y: drag.oy + p.y - drag.sy }, map.width, map.height); return }
+    if (app.game.ui.view !== 'planet' || !drag || drag.kind !== 'move') return;
     const w = app.w, n = node(w, drag.id);
     if (!drag.moved && Math.hypot(p.x - drag.sx, p.y - drag.sy) < 2) return;
     drag.moved = true;
@@ -75,6 +78,11 @@ export function wireInput(app) {
 
   map.addEventListener('pointerup', e => {
     const d0 = app.drag; if (!d0) return; app.drag = null;
+    if (d0.kind === 'pan') {
+      if (app.mode !== 'play' || d0.moved) return;
+      const game = app.game, g = galAt(toMap(map, e), app.t); if (g) { game.ui.galSel = g.name; app.panelKey = ''; renderPanel(app); if (dbl(g.name) && g.ours) setView(app, 'system') }
+      return;
+    }
     if (app.mode !== 'play' || app.game.ui.view !== 'planet') return;
     const w = app.w, S = w.S, hub = w.hub, ISL = w.def.isl, p = toMap(map, e);
     if (d0.kind === 'move') { if (!d0.moved) sel(app, { t: 'node', id: d0.id }); else if (d0.paid) say(app, `Moved ${ISL[d0.id].name} for ${d0.paid} Rock.`); return }

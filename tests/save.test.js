@@ -180,3 +180,11 @@ test('a junk band field on an old v2 save is dropped, and the save loads and dra
   const r = trialLoad(o, () => new PixCtx(1146, 480));
   assert.ok(r && r.game, 'the trial draw accepts it');
 });
+
+test('the galaxy pan is kept, and defaults for a save without it', () => {
+  const g = newGame(3); g.ui.galPan = { x: 120, y: -40 };
+  assert.deepEqual(deserialize(trip(serialize(g, 1))).ui.galPan, { x: 120, y: -40 });
+  const o = trip(serialize(newGame(3), 1)); delete o.ui.galPan;
+  assert.deepEqual(deserialize(o).ui.galPan, { x: 0, y: 0 });
+  assert.deepEqual(newGame(3).ui.galPan, { x: 0, y: 0 });
+});
