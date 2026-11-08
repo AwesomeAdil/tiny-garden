@@ -69,15 +69,19 @@ test('bridge panel shows its two ends and its way', () => {
   assert.match(h, /data-act="untie"/);
   const arrows = html => [...html.matchAll(/<img class="ar( l)?"/g)].map(m => m[1] ? 'L' : 'R').join('');
   assert.equal(arrows(h), 'LR', 'both ways: a left and a right arrow');
+  const tI = h.search(/<b>The town<\/b>/), arI = h.search(/class="ar/), isI = h.search(new RegExp('<b>' + w.def.isl[n.id].name + '</b>'));
+  assert.ok(tI >= 0 && arI >= 0 && isI >= 0 && tI < arI && arI < isI, 'town (a), arrows, island (b)');
   r.way = 1; assert.equal(arrows(panelHTML(app)), 'R', 'a to b: points right');
   r.way = -1; assert.equal(arrows(panelHTML(app)), 'L', 'b to a: points left');
   // the other way round: the bridge was tied from the island to the town, so a is the island and b the town.
-  // The arrow follows the sender (a) to the receiver (b), whatever the layout.
+  // The arrow follows the sender (a) to the receiver (b), not the layout: this test pins island first, town second.
   const g2 = newGame(3), w3 = g2.worlds[0], i3 = islands(w3)[0], r3 = tie(w3, i3, w3.hub); r3.way = 1;
   const app3 = mkApp(); app3.game = g2; w3.S.sel = { t: 'rope', id: r3.id };
   const h3 = panelHTML(app3), at = (re) => h3.search(re);
   assert.equal(arrows(h3), 'R');
-  assert.ok(at(new RegExp('<b>' + w3.def.isl[i3.id].name + '</b>')) < at(/class="ar"/) && at(/class="ar"/) < at(/<b>The town<\/b>/), 'island, arrow, town');
+  const iIdx = at(new RegExp('<b>' + w3.def.isl[i3.id].name + '</b>')), aIdx = at(/class="ar"/), tIdx = at(/<b>The town<\/b>/);
+  assert.ok(iIdx >= 0 && aIdx >= 0 && tIdx >= 0, 'island, arrow and town all appear');
+  assert.ok(iIdx < aIdx && aIdx < tIdx, 'island, arrow, town');
   r3.way = -1; const h4 = panelHTML(app3);
   assert.equal(arrows(h4), 'L');
 });
