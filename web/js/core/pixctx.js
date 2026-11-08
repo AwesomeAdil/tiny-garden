@@ -72,6 +72,23 @@ export class PixCtx {
     }
   }
 
+  // Another PixCtx's pixels zoomed by the whole number z, nearest-neighbour: each source pixel becomes a z x z block
+  // (alpha is kept: opaque blocks are copied, partly transparent ones blended).
+  blitZoom(src, x, y, z) {
+    x = Math.round(x + this.tx); y = Math.round(y + this.ty);
+    const sw = src.width, sh = src.height, W = this.width, H = this.height, sp = src.px, sd = src.d, px = this.px, ga = Math.max(0, Math.min(1, this.globalAlpha));
+    if (ga <= 0) return;
+    for (let j = 0; j < sh; j++) {
+      const y0 = Math.max(0, y + j * z), y1 = Math.min(H, y + (j + 1) * z); if (y0 >= y1) continue;
+      for (let i = 0; i < sw; i++) {
+        const si = j * sw + i, a8 = sd[si * 4 + 3]; if (!a8) continue;
+        const x0 = Math.max(0, x + i * z), x1 = Math.min(W, x + (i + 1) * z); if (x0 >= x1) continue;
+        if (a8 === 255 && ga >= 1) { for (let yy = y0; yy < y1; yy++) px.fill(sp[si], yy * W + x0, yy * W + x1) }
+        else for (let yy = y0; yy < y1; yy++) for (let xx = x0; xx < x1; xx++) this._over((yy * W + xx) * 4, sd[si * 4], sd[si * 4 + 1], sd[si * 4 + 2], a8 / 255 * ga);
+      }
+    }
+  }
+
   // Whole-image puts at an offset (what the galaxy does).
   putImageData(img, dx, dy) {
     const W = this.width, sw = img.width, src = new Uint32Array(img.data.buffer, img.data.byteOffset, sw * img.height);

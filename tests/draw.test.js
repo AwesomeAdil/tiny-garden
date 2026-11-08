@@ -123,3 +123,38 @@ test('close-ups draw on the kit and never write to the game or show goods', asyn
   const full = deserialize(trip(serialize(skip(newGame(3)), 0))); for (const m of isl(full.worlds[0])) { m.out = { water: 6, light: 6, stone: 6 }; m.stock = { water: 9, light: 9, stone: 9 } }
   assert.ok(Buffer.from(draw(full, full.worlds[0], isl(full.worlds[0])[0]).d).equals(Buffer.from(base.d)), 'stock changed the picture');
 });
+
+test('blitZoom makes exact z x z blocks and keeps alpha', () => {
+  const src = new PixCtx(3, 2, { transparent: true }); src.fillStyle = '#ff0000'; src.fillRect(0, 0, 1, 1); src.fillStyle = '#00ff00'; src.fillRect(2, 1, 1, 1);
+  const dst = new PixCtx(20, 20); dst.fillStyle = '#000000'; dst.fillRect(0, 0, 20, 20);
+  for (const z of [2, 3, 4]) {
+    dst.fillStyle = '#000000'; dst.fillRect(0, 0, 20, 20); dst.blitZoom(src, 5, 4, z);
+    const RED = new PixCtx(1, 1); RED.fillStyle = '#ff0000'; RED.fillRect(0, 0, 1, 1); const GREEN = new PixCtx(1, 1); GREEN.fillStyle = '#00ff00'; GREEN.fillRect(0, 0, 1, 1);
+    for (let y = 0; y < 20; y++) for (let x = 0; x < 20; x++) {
+      const lx = x - 5, ly = y - 4, i = Math.floor(lx / z), j = Math.floor(ly / z);
+      const want = lx >= 0 && ly >= 0 && i === 0 && j === 0 ? RED.px[0] : lx >= 0 && ly >= 0 && i === 2 && j === 1 ? GREEN.px[0] : 0xff000000;
+      assert.equal(dst.px[y * 20 + x], want, `z${z} (${x},${y})`);
+    }
+  }
+});
+
+test('the island close-up is the city sprite zoomed whole', async () => {
+  const { islandView, zoomFor } = await import('../web/js/draw/closeup.js');
+  const { getSprite } = await import('../web/js/draw/kit.js');
+  const game = skip(newGame(3)), w = game.worlds[0], n = isl(w)[0], W = 1146, H = 480, v = worldView(W, H), I = getSprite(w, n, 'near', v.k), z = zoomFor(I.w, W);
+  assert.ok(z >= 2 && z <= 4 && I.w * z <= W * .45 + 1e-9 || z === 2);
+  const c = new PixCtx(W, H); islandView(c, w, n, 3, W, H);
+  // the sprite's own opaque pixels show as z x z blocks of the same colour somewhere on the canvas
+  let found = 0;
+  for (let y = 0; y < I.h && found < 5; y += 3) for (let x = 0; x < I.w && found < 5; x += 3) {
+    if (I.px.d[(y * I.w + x) * 4 + 3] !== 255) continue;
+    const col = I.px.px[y * I.w + x];
+    // scan for a z x z block of this colour (only blocks that are all one colour count)
+    outer: for (let cy = 0; cy + z <= H; cy++) for (let cx = 0; cx + z <= W; cx++) {
+      if (c.px[cy * W + cx] !== col) continue;
+      for (let q = 0; q < z * z; q++) if (c.px[(cy + (q / z | 0)) * W + cx + q % z] !== col) continue outer;
+      found++; break outer;
+    }
+  }
+  assert.ok(found >= 3, `zoomed blocks found: ${found}`);
+});

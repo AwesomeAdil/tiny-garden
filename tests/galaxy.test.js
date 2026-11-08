@@ -50,3 +50,11 @@ test('star systems follow the pan', () => {
   assert.equal(Math.round(p1.x - p0.x), 50); assert.equal(Math.round(p1.y - p0.y), -20);
   assert.ok(typeof galAt === 'function');
 });
+
+test('the black hole jets move with the pan (anchored on the hole, no stray line)', () => {
+  const pan = { x: -300, y: 40 }, c = shot(pan), s = skyLayer(W, H, 57).px.px, cx = W / 2 + pan.x, cy = H / 2 + pan.y;
+  const lit = x => { let m = 0; for (let y = Math.round(cy) - 150; y < Math.round(cy) - 15; y++) for (let d = -8; d <= 8; d++) if (c.px[y * W + Math.round(x) + d] !== s[y * W + Math.round(x) + d]) m++; return m };
+  assert.ok(lit(cx) > 60, 'jet above the hole');
+  // the unpanned centre column (where a stray, un-panned jet would sit) is only sky and a few stars there
+  assert.ok(lit(W / 2) < 25, `stray line at the old centre: ${lit(W / 2)}`);
+});

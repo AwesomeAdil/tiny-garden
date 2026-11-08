@@ -25,19 +25,36 @@ function horizonBack(W, H, seed) {
   return { px, tw: L.tw.filter(s => px.px[s.y * W + s.x] === L.px.px[s.y * W + s.x]) };
 }
 
-// The town square of world w on a W x H canvas: TIDE's horizon and houses from the city, drawn at 3x over the kit's
-// sky, with the lamps glowing.
-const UP = 3;
+// A close-up is a zoom, not a rebuild: the largest whole zoom of 2, 3 or 4 that keeps a w-pixel-wide thing within
+// about 45% of the canvas width (2 at least).
+export const zoomFor = (w, W) => [4, 3, 2].find(z => w * z <= W * .45) || 2;
+
+// The town square of world w on a W x H canvas: the city's own background (its sky, TIDE's horizon, houses and
+// lamps) around the town, zoomed by z and placed with the town's surface at two thirds of the height.
 export function planetView(c, game, w, t, W = VW, H = VH) {
-  const hw = Math.ceil(W / UP), hh = Math.ceil(H / UP), stage = w.hub.stage, seed = sky2(w, 53);
-  const B = remember(['town', W, H, w.def.key, stage, seed, game.seed].join(), () => {
-    const v = { w: hw, h: hh, ...worldView(hw, hh) }, small = cityBackground(game, w, v), sm = citySky(game, w, hw, hh).px.px, L = skyLayer(W, H, seed), px = new PixCtx(W, H);
-    px.putImageData(L.img, 0, 0);
-    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const i = Math.floor(y / UP) * hw + Math.floor(x / UP); if (small.px.px[i] !== sm[i]) px.px[y * W + x] = small.px.px[i] }
-    return { px, tw: L.tw.filter(s => px.px[s.y * W + s.x] === L.px.px[s.y * W + s.x]), lamps: townLayout(v, stage).lamps };
+  const stage = w.hub.stage, v = { w: W, h: H, ...worldView(W, H) };
+  const B = remember(['town', W, H, w.def.key, stage, game.seed].join(), () => {
+    const src = cityBackground(game, w, v), T = src.town, z = zoomFor(T.half * 2, W), px = new PixCtx(W, H);
+    const sx0 = Math.round(T.H.cx - W / z / 2), sy0 = Math.max(0, Math.min(H - Math.ceil(H / z), Math.round(T.H.top - H * .66 / z)));
+    for (let y = 0; y < H; y++) { const sy = sy0 + Math.floor(y / z); if (sy >= H) break; for (let x = 0; x < W; x++) { const sx = sx0 + Math.floor(x / z); px.px[y * W + x] = sx >= 0 && sx < W ? src.px.px[sy * W + sx] : src.px.px[sy * W + (sx < 0 ? 0 : W - 1)] } }
+    return { px, z, sx0, sy0, tw: src.tw, lamps: T.lamps };
   });
-  c.putImageData(B.px.img, 0, 0); twinkle(c, B.tw, t);
-  B.lamps.forEach((l, i) => glowAt(c, l.x * UP, l.y * UP - 8, STY.book.win, .8 + .2 * Math.sin(t * .6 + i * 1.7)));
+  const { z, sx0, sy0 } = B;
+  c.putImageData(B.px.img, 0, 0);
+  for (const s of B.tw) { const b = Math.sin(t * s.f + s.p), x = (s.x - sx0) * z, y = (s.y - sy0) * z; if (b > -.2 && x >= 0 && y >= 0 && x < W && y < H) P(c, b > .6 ? '#e3eafc' : '#8087a2', x, y, z, z) }
+  B.lamps.forEach((l, i) => glowAt(c, (l.x - sx0) * z, (l.y - sy0) * z - 4 * z, STY.book.win, .8 + .2 * Math.sin(t * .6 + i * 1.7)));
+}
+
+// One island's sprite, zoomed: the static sprite blitted at z, and its animated bits (falls, fireflies, lamp flicker)
+// drawn by drawIsland into a transparent layer at native size each frame and zoomed the same.
+const LAYERS = new WeakMap(), M = 24;
+export function drawIslandZoom(c, I, x, y, t, z) {
+  x = Math.round(x); y = Math.round(y);
+  let L = LAYERS.get(I); if (!L) { L = { tmp: new PixCtx(I.w + 2 * M, I.h + 2 * M, { transparent: true }), stub: { ...I, px: new PixCtx(1, 1, { transparent: true }) } }; LAYERS.set(I, L) }
+  c.blitZoom(I.px, x - I.ox * z, y - I.oy * z, z);
+  if (!I.anim.length) return;
+  L.tmp.px.fill(0); drawIsland(L.tmp, L.stub, M + I.ox, M + I.oy, t);
+  c.blitZoom(L.tmp, x - (M + I.ox) * z, y - (M + I.oy) * z, z);
 }
 
 // The Long Dawn from page 9: the planet's horizon below, the star rising on its rim. At 200x120 it is page 38's
@@ -67,11 +84,11 @@ export function dawn(c, t, W = VW, H = VH, rt = t) {
   c.putImageData(img, 0, 0); D.DST.forEach(s => { if (Math.hypot(s.x - PCX, s.y - PCY) < PR + 5 || Math.sin(t * .8 + s.ph) < -.55) return; c.fillStyle = s.v > .82 ? KD.flamingo : s.v > .55 ? KD.text : KD.blue; c.fillRect(Math.round(s.x), Math.round(s.y), 1, 1) });
 }
 
-// Island n of world w at 2x the city's size, floating over a soft horizon under the stars. Whatever stage it is
-// at shows (its picks, gifts and animation); goods are never drawn.
+// Island n of world w: the city's own near-band sprite (identical to what the city draws), zoomed whole over a soft
+// horizon under the stars. Goods are never drawn.
 export function islandView(c, w, n, t, W = VW, H = VH) {
   const B = remember(['isl', W, H, sky2(w, 89)].join(), () => horizonBack(W, H, sky2(w, 89)));
   c.putImageData(B.px.img, 0, 0); twinkle(c, B.tw, t);
-  const k = Math.max(1, 2 * worldView(W, H).k), I = getSprite(w, n, 'near', k), x = Math.round(W / 2), y = Math.round(H * .46 - I.h / 2 + I.oy) + isleBob(n, t);
-  drawIsland(c, I, x, y, t);
+  const I = getSprite(w, n, 'near', worldView(W, H).k), z = zoomFor(I.w, W), x = Math.round(W / 2), y = Math.round(H * .46 - I.h * z / 2 + I.oy * z) + isleBob(n, t) * z;
+  drawIslandZoom(c, I, x, y, t, z);
 }
