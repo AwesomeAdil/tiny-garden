@@ -167,11 +167,16 @@ test('a bad active event is dropped and the game survives catch-up; bad ev numbe
   assert.equal(deserialize(c).ev.active, null);
 });
 
-test('island bands survive a save round-trip', async () => {
-  const { newGame } = await import('../web/js/sim/game.js');
-  const { serialize, deserialize } = await import('../web/js/sim/save.js');
-  const g = newGame(4), back = deserialize(JSON.parse(JSON.stringify(serialize(g, 0))));
-  const bands = w => w.S.nodes.filter(n => n.kind === 'island').map(n => n.band);
-  assert.deepEqual(bands(back.worlds[0]), bands(g.worlds[0]));
-  assert.ok(bands(g.worlds[0]).every(b => ['far', 'mid', 'near'].includes(b)));
+test('a junk band field on an old v2 save is dropped, and the save loads and draws', async () => {
+  globalThis.ImageData ??= class { constructor(w, h) { this.width = w; this.height = h; this.data = new Uint8ClampedArray(w * h * 4) } };
+  const { trialLoad } = await import('../web/js/boot.js');
+  const { PixCtx } = await import('../web/js/core/pixctx.js');
+  const o = JSON.parse(JSON.stringify(serialize(skip(newGame(4)), 0)));
+  const junk = [null, 'sky', 7, { a: 1 }, 'near'];
+  o.worlds[0].S.nodes.filter(n => n.kind === 'island').forEach((n, i) => { n.band = junk[i % junk.length] });
+  const g = deserialize(o);
+  assert.ok(g, 'loads');
+  for (const n of g.worlds[0].S.nodes) assert.ok(!('band' in n), 'prune drops band');
+  const r = trialLoad(o, () => new PixCtx(1146, 480));
+  assert.ok(r && r.game, 'the trial draw accepts it');
 });

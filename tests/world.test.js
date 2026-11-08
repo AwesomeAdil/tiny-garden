@@ -16,7 +16,7 @@ test('horizon layout: bands, spread, spacing and reach, for both worlds', () => 
     for (const [x, y, band] of pts) {
       const [lo, hi] = BAND_Y[band];
       assert.ok(y >= lo && y <= hi && x >= 40 && x <= 600, `${why}: ${band} island at ${x},${y}`);
-      assert.equal(bandOf(y), band, `${why}: bandOf agrees`);
+      assert.equal(bandOf(y), band, `${why}: an island placed in ${band} at y ${y} derives ${bandOf(y)}`);
       bands[band]++;
     }
     for (const b of ['far', 'mid', 'near']) assert.ok(bands[b] >= 1 && bands[b] <= Math.ceil(ids.length / 3), `${why}: ${b} x${bands[b]}`);
@@ -28,9 +28,10 @@ test('horizon layout: bands, spread, spacing and reach, for both worlds', () => 
   }
 });
 
-test('makeWorld stores each island\'s band', () => {
+test('bandOf sits between the band ranges; makeWorld stores no band', () => {
+  for (const b of ['far', 'mid', 'near']) for (const y of BAND_Y[b]) assert.equal(bandOf(y), b, `${b} edge ${y}`);
   const w = makeWorld(DEF_OCEAN, 3);
-  for (const n of isl(w)) assert.equal(n.band, bandOf(n.y));
+  for (const n of isl(w)) assert.ok(!('band' in n), 'the band is derived from y, never stored');
   assert.deepEqual(TOWN, { x: 320, y: 240, r: 22 });
 });
 
@@ -80,7 +81,7 @@ test('the spine ties every island to the town with stage-1 piers and no crossing
   const { autoNet } = await import('../web/js/sim/dev.js');
   const { DEF_LAVA } = await import('../web/js/sim/content.js');
   for (const def of [DEF_OCEAN, DEF_LAVA]) for (let seed = 1; seed <= 20; seed++) {
-    const w = makeWorld(def, seed), sorted = isl(w).slice().sort((a, b) => a.x - b.x);
+    const w = makeWorld(def, seed), sorted = isl(w).slice().sort((a, b) => a.x - b.x).map(n => ({ id: n.id, x: n.x, y: n.y, band: bandOf(n.y) }));
     const sp = spine(sorted);
     assert.equal(sp.length, sorted.length, `${def.key} seed ${seed}: one bridge per island`);
     for (const [p, q] of sp) assert.ok(Math.hypot(p.x - q.x, p.y - q.y) <= MAXR - 8, `${def.key} seed ${seed}: ${p.id}-${q.id} out of reach`);

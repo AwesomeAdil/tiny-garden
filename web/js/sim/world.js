@@ -5,8 +5,9 @@ import { cross } from './graph.js';
 
 const inv0 = () => Object.fromEntries(GOODS.map(k => [k, 0]));
 
-// The depth band of a world y, with thresholds halfway between the layout's band ranges (a dragged island's
-// band follows its y).
+// The depth band of a world y, with thresholds halfway between the layout's band ranges, so every laid-out island
+// derives the band it was placed in. An island's band is never stored: it is always bandOf(n.y), so a moved
+// island's band follows its new y.
 export const bandOf = y => y < (BAND_Y.far[1] + BAND_Y.mid[0]) / 2 ? 'far' : y < (BAND_Y.mid[1] + BAND_Y.near[0]) / 2 ? 'mid' : 'near';
 
 // The horizon layout: x in [40, 600] split into one column per island (islands in seeded order), each column in a
@@ -16,7 +17,7 @@ export const bandOf = y => y < (BAND_Y.far[1] + BAND_Y.mid[0]) / 2 ? 'far' : y <
 // town to each near island, then outward column by column (spine() below, which dev autoNet ties first). A spine
 // is a set of paths (2 piers per stage-1 island) whose segments never cross. The un-jittered slots (near
 // islands pushed out a quarter column) are the fallback and are in reach by construction.
-// Returns {id: [x, y, band]}.
+// Returns {id: [x, y, band]}; the band is the one it was placed in (for tests), not stored on the node.
 export function layout(seed, ids) {
   const r = rngf(seed), n = ids.length, cw = 560 / n, reach = MAXR - 8;
   const order = ids.slice(); for (let i = n - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [order[i], order[j]] = [order[j], order[i]] }
@@ -67,7 +68,7 @@ export function makeWorld(def, seed) {
   w.S = { time: 0, nodes: [], ropes: [], sel: { t: 'node', id: 'planet' }, cable: false, cableT: 0, nextId: 1 };
   w.hub = { id: 'planet', kind: 'planet', x: TOWN.x, y: TOWN.y, r: TOWN.r, stage: 1, paid: inv0(), relay: [] };
   w.S.nodes.push(w.hub);
-  Object.keys(pos).forEach((k, i) => w.S.nodes.push({ id: k, kind: 'island', x: pos[k][0], y: pos[k][1], band: pos[k][2], r: 12, stage: 1, paid: inv0(), out: inv0(), relay: [], spots: {}, sends: null, satisfied: [], gifts: [], name: null, seed: i + 1 }));
+  Object.keys(pos).forEach((k, i) => w.S.nodes.push({ id: k, kind: 'island', x: pos[k][0], y: pos[k][1], r: 12, stage: 1, paid: inv0(), out: inv0(), relay: [], spots: {}, sends: null, satisfied: [], gifts: [], name: null, seed: i + 1 }));
   return w;
 }
 

@@ -43,6 +43,7 @@ function prune(S, def) {
   S.nodes = S.nodes.filter(ok);
   for (const n of S.nodes) {
     if (n.kind !== 'island') continue;
+    delete n.band; // a few v2 builds stored the depth band; it is derived from y now
     const spots = {};
     for (const [k, s] of Object.entries(n.spots && typeof n.spots === 'object' ? n.spots : {})) {
       if (!/^[0-4]$/.test(k) || !s || typeof s !== 'object') continue;

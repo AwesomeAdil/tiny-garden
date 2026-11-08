@@ -88,12 +88,12 @@ test('nodeAt finds islands and the town in world units', () => {
 });
 
 test('islands are drawn natively at the view scale', async () => {
-  const { getSprite, STAGE_F } = await import('../web/js/draw/kit.js');
+  const { getSprite, STAGE_F, bandOf } = await import('../web/js/draw/kit.js');
   const { ISLAND_HW } = await import('../web/js/sim/content.js');
   const game = skip(newGame(3)), w = game.worlds[0], v = view(1146, 480);
   for (const n of isl(w)) {
-    const s1 = getSprite(w, n, n.band, 1), sk = getSprite(w, n, n.band, v.k);
-    assert.equal(sk.hw, Math.round(ISLAND_HW[n.band] * STAGE_F[n.stage] * v.k));
+    const b = bandOf(n.y), s1 = getSprite(w, n, b, 1), sk = getSprite(w, n, b, v.k);
+    assert.equal(sk.hw, Math.round(ISLAND_HW[b] * STAGE_F[n.stage] * v.k));
     assert.ok(sk.w > s1.w && sk !== s1, 'a bigger sprite, built anew');
   }
 });
@@ -102,4 +102,14 @@ test('the home system is clickable in the galaxy', () => {
   drawGalaxy(fakeCtx(), 0, null, 0, 688, 288);
   const g = GSYS[0], hit = [...Array(688 * 288).keys()].map(i => ({ x: i % 688, y: Math.floor(i / 688) })).find(p => galAt(p, 0) === g);
   assert.ok(hit, 'our system is clickable somewhere');
+});
+
+test('a dragged island takes the band of its new y', async () => {
+  const { bandFor } = await import('../web/js/draw/kit.js');
+  const game = skip(newGame(3)), w = game.worlds[0], n = isl(w)[0];
+  n.y = 60; assert.equal(bandFor(n), 'far');
+  n.y = 120; assert.equal(bandFor(n), 'mid');
+  n.y = 170; assert.equal(bandFor(n), 'near');
+  n.band = 'far'; assert.equal(bandFor(n), 'near', 'a stray band field is ignored');
+  drawCity(new PixCtx(1146, 480), game, w, 1, view(1146, 480), null);
 });

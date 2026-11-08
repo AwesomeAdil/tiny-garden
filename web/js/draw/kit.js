@@ -309,8 +309,8 @@ export const BANDS = { far: { haze: .55 }, mid: { haze: .25 }, near: { haze: 0 }
 // Islands grow a little with each stage, as a factor on their band's size.
 export const STAGE_F = [0, .75, .85, .93, 1];
 export { bandOf };
-// An island's band: the one layout gave it (saved on the node), else from its y.
-export const bandFor = n => n.band || bandOf(n.y);
+// An island's band: always derived from its y (never stored), so a moved island changes band with it.
+export const bandFor = n => bandOf(n.y);
 // An island's half-width in world units.
 export const islandHW = (n, band = bandFor(n)) => (ISLAND_HW[band] || ISLAND_HW.near) * STAGE_F[Math.max(1, Math.min(4, n.stage | 0 || 1))];
 // An island's bob, in whole pixels, from its seed (the same phase in every view and in the events).
