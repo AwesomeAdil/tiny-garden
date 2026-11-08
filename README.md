@@ -53,6 +53,7 @@ All shots are 1512×944, from `scripts/shot.mjs` (more in `shots/v2/`).
 | 1 2 3 4 | city, system, galaxy, close view |
 | Tab | next view |
 | N | show or hide names (remembered) |
+| Option+Shift+D | developer mode on or off (play mode only) |
 
 ## Build and install
 
@@ -68,6 +69,7 @@ This builds, assembles `~/Applications/Tiny Garden.app`, links `~/.local/bin/tin
 
 ```
 tiny-garden toggle   # wallpaper <-> play
+tiny-garden dev      # play mode with developer mode on
 tiny-garden quit     # save and exit
 tiny-garden status   # mode, window and screen details
 ```
@@ -82,7 +84,7 @@ rm -rf ~/Applications/Tiny\ Garden.app ~/Library/LaunchAgents/local.tiny-garden.
 
 ## Saves
 
-`~/Library/Application Support/tiny-garden/`: `save.json` (live), `save.prev.json` (the map before "New map"), `save.v1.json` (a v1 save, set aside when v2 first starts; a later one never overwrites it and goes to `save.v1-YYYYMMDD-HHMMSS.json`), `save.bad-YYYYMMDD-HHMMSS.json` (each unreadable save, kept).
+`~/Library/Application Support/tiny-garden/`: `save.json` (live), `save.prev.json` (the map before "New map"), `save.v1.json` (a v1 save, set aside when v2 first starts; a later one never overwrites it and goes to `save.v1-YYYYMMDD-HHMMSS.json`), `save.bad-YYYYMMDD-HHMMSS.json` (each unreadable save, kept), `save.dev.json` (developer mode's sandbox).
 
 ## Tests and screenshots
 
@@ -93,6 +95,18 @@ node scripts/shot.mjs "seed=7&mode=play&view=planet" shots/city.png 1512,944
 
 `scripts/shot.mjs` drives headless Chrome for Testing from Playwright's cache by default; set `CHROME=/path/to/chrome`
 to use another Chrome binary.
+
+## Developer mode
+
+For testing the upgrade path without the wait. Option+Shift+D in play mode (or `tiny-garden dev`) saves the real
+garden and swaps in a sandbox from `save.dev.json` (a fresh game if there is none), with a red DEV tag in the dock and a
+dev strip in the side panel: speed x1/x60/x600, Grow and Fill for the selected island, a whale, traveller or aurora now,
+a gift, the next town stage, the cable, Jump (the `?skip=1` state) and New sandbox. While it is on, every save goes to
+`save.dev.json` and `save.json` is never written, archived or set aside. Option+Shift+D again, Esc or any switch to
+the wallpaper saves the sandbox and brings the real garden back as it was, caught up for the time spent in dev; the
+wallpaper always shows the real garden. The sandbox doesn't catch up while it is off. Standalone, `?dev=1` runs it on
+an in-memory sandbox, and `devact=grow,grow` (with `n=<island>`) presses dev buttons for shots:
+`node scripts/shot.mjs "seed=7&mode=play&dev=1&n=ember&devact=grow,grow" shots/dev.png 1512,944`.
 
 ## Contributing art
 
