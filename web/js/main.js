@@ -10,10 +10,11 @@ import { startClock, clockStep, clockSavedAt } from './sim/clock.js';
 import { node } from './sim/world.js';
 import { sysPlanets } from './sim/system.js';
 import { W, H } from './sim/content.js';
-import { viewSize } from './core/pixel.js';
+import { viewScale, worldOffset } from './core/pixel.js';
 import { VIEWS } from './ui/esc.js';
 import { bg } from './draw/scene.js';
 import { drawMap } from './draw/map.js';
+import { drawCity } from './draw/city.js';
 import { drawSystem } from './draw/system.js';
 import { drawGalaxy, galInvalidate, GSYS } from './draw/galaxy.js';
 import { planetView, islandView, dawn } from './draw/closeup.js';
@@ -25,7 +26,7 @@ import { wireDock, syncDock, setSpeed, askNewMap } from './ui/dock.js';
 import { wireInput } from './ui/input.js';
 import { PixCtx } from './core/pixctx.js';
 
-const SAVE_MS = 30000, FIRST_DAYS = 3 * 864e5;
+const SAVE_MS = 30000;
 // Wallpaper is a quiet background. Each frame WebKit puts on screen costs about 1% of a core on a big display
 // (more the more screen it covers), so the map draws 3 times a second and skips frames that didn't change,
 // the galaxy turns slowly every frame, and the full-screen sky around the map repaints every 10 s.
@@ -39,7 +40,7 @@ const bridge = () => window.webkit?.messageHandlers?.garden;
 const post = msg => { try { bridge()?.postMessage(msg) } catch (e) { /* no host */ } };
 const native = !!bridge();
 
-const els = { sky: $('sky'), stage: $('stage'), mapbox: $('mapbox'), map: $('map'), names: $('names'), tags: $('tags'), price: $('price'), where: $('where'), catch: $('catch'), playtag: $('playtag'), ask: $('ask'),
+const els = { sky: $('sky'), stage: $('stage'), mapbox: $('mapbox'), map: $('map'), names: $('names'), tags: $('tags'), price: $('price'), catch: $('catch'), ask: $('ask'),
   side: $('side'), view: $('view'), vlbl: $('vlbl'), vday: $('vday'), panel: $('panel'), dock: $('dock'), shopbtn: $('shopbtn'), newbtn: $('newbtn'), guide: $('guide'), stock: $('stock'), hint: $('hint') };
 
 const app = {
@@ -100,13 +101,12 @@ app.art = art;
 
 function drawMain(force = false) {
   const game = app.game, ui = game.ui, w = app.w, t = app.t, play = app.mode === 'play', v = ui.view;
-  if (play && v === 'planet') { drawMap(app.mapCtx, game, w, t, { drag: app.drag, pointer: app.pointer, tool: app.tool }); art.view = null }
-  else {
+  {
     const c = art.pix;
     if (v === 'galaxy') { if (!play) galInvalidate(c); drawGalaxy(c, t, play ? ui.galSel : null, play ? t : Math.floor(t * GAL_WALL_STEP) / GAL_WALL_STEP * GAL_WALL_SPIN, art.w, art.h) }
     else if (v === 'system') drawSystem(c, game, t, play ? ui.sysSel : null, art.w, art.h);
     else if (v === 'close') { const n = closeSubject(w), rt = play ? Math.floor(t * 2) / 2 : Math.floor(t / DAWN_STEP) * DAWN_STEP; if (n) islandView(c, w, n, t, art.w, art.h, rt); else planetView(c, game, w, t, art.w, art.h) }
-    else { const S = w.S, keep = S.sel; S.sel = { t: 'none', id: null }; try { drawMap(c, game, w, t) } finally { S.sel = keep } }
+    else drawCity(c, game, w, t, { w: art.w, h: art.h, ...worldOffset(art.w, art.h) }, play ? { drag: app.drag, pointer: app.pointer, tool: app.tool } : null);
     art.view = v; present(force);
   }
   const p = performance.now(); if (play || p - lastSky >= SKY_MS - 4) { lastSky = p; drawSky(t) }
@@ -148,11 +148,8 @@ function drawView() {
 
 function renderSlow() {
   const game = app.game, v = game.ui.view, play = app.mode === 'play';
-  const cn = v === 'close' ? closeSubject(app.w) : null;
-  setText(els.where, v === 'galaxy' ? 'THE GALAXY' : v === 'system' ? GSYS[0].name.toUpperCase() + ' · SOLAR SYSTEM' : v === 'close' ? app.w.def.name + ' · ' + (cn ? app.w.def.isl[cn.id].name : 'TOWN SQUARE') : app.w.def.name);
   renderTags(app);
   els.catch.classList.toggle('on', app.catching);
-  els.playtag.classList.toggle('on', Date.now() - (game.ui.firstSeen || 0) < FIRST_DAYS);
   if (play) { renderPanel(app); renderStock(app); renderGuide(app); idleHint(app) }
 }
 
@@ -160,20 +157,20 @@ function renderAll() { lastDraw = lastView = lastPanel = lastSky = -1e9; app.pan
 
 // ---------- scaling ----------
 // Each view picks its canvas size and whole-number scale from the stage, counted in device pixels
-// (core/pixel.js viewSize): the city 320x200, the galaxy and system fitted to the stage, the close-up 344x144 or wider.
+// (core/pixel.js viewScale): finer pixels on bigger screens, never smaller than the 640x300 world.
 function layout() {
   const dpr = window.devicePixelRatio || 1, vw = innerWidth, vh = innerHeight, root = document.documentElement.style;
   const ui = app.mode === 'play' && vw >= 2200 && vh >= 1300 ? 2 : 1; root.setProperty('--ui', ui);
   const r = els.stage.getBoundingClientRect(), dW = Math.floor(r.width * dpr), dH = Math.floor(r.height * dpr);
-  const { s, w, h } = viewSize(app.game ? app.game.ui.view : 'planet', dW, dH);
+  const { s, w, h } = viewScale(dW, dH);
   if (els.map.width !== w || els.map.height !== h) { els.map.width = w; els.map.height = h; galInvalidate(app.mapCtx) }
   if (!art.pix || art.w !== w || art.h !== h) Object.assign(art, { pix: new PixCtx(w, h), prev: new Uint32Array(w * h), w, h, view: null });
   art.s = s;
   const mw = w * s, mh = h * s, ox = Math.floor((dW - mw) / 2), oy = Math.floor((dH - mh) / 2);
   Object.assign(els.mapbox.style, { left: ox / dpr + 'px', top: oy / dpr + 'px', width: mw / dpr + 'px', height: mh / dpr + 'px' });
-  // Overlay text (where, tags, price, play tag) keeps the city's size in every view, so it doesn't jump on a view switch.
+  // Overlay text (tags, price) keeps the city's size in every view, so it doesn't jump on a view switch.
   root.setProperty('--inset', (app.mode === 'play' ? 0 : Math.max(0, topInset - r.top - oy / dpr)) + 'px');
-  const sc = viewSize('planet', dW, dH).s; root.setProperty('--s', String(Math.max(1, Math.ceil(sc / 2 - .5)) / dpr));
+  const sc = s; root.setProperty('--s', String(Math.max(1, Math.ceil(sc / 2 - .5)) / dpr));
   // Names: pixel text with u device pixels per font pixel (3 at the wallpaper's 5x), on a canvas over the map.
   const u = Math.max(2, Math.min(4, Math.round(s * .6))), nw = Math.ceil(mw / u), nh = Math.ceil(mh / u);
   if (app.nameU !== u || art.w !== art.namesW || art.h !== art.namesH) { app.namesPrev = null; art.namesW = art.w; art.namesH = art.h }

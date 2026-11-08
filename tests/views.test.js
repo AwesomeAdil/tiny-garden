@@ -1,36 +1,31 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { fitSize, closeSize, viewSize } from '../web/js/core/pixel.js';
-import { VIEWS, nextView } from '../web/js/ui/esc.js';
+import { readFileSync } from 'node:fs';
+import { viewScale, worldOffset } from '../web/js/core/pixel.js';
 
-test('galaxy and system fit the stage at an integer scale chosen from its height', () => {
-  assert.deepEqual(fitSize(3440, 1440), { s: 5, w: 688, h: 288 });
-  assert.deepEqual(fitSize(1512, 944), { s: 3, w: 504, h: 314 });
-  assert.deepEqual(fitSize(2592, 1100), { s: 3, w: 864, h: 366 });
-  assert.deepEqual(fitSize(600, 200), { s: 1, w: 600, h: 200 });
-  assert.deepEqual(viewSize('galaxy', 3440, 1440), fitSize(3440, 1440));
-  assert.deepEqual(viewSize('system', 3440, 1440), fitSize(3440, 1440));
+test('3440x1440 is scale 3', () => {
+  assert.deepEqual(viewScale(3440, 1440), { s: 3, w: 1146, h: 480 });
 });
 
-test('the city keeps 320x200 at the largest whole scale', () => {
-  assert.deepEqual(viewSize('planet', 3440, 1440), { s: 7, w: 320, h: 200 });
-  assert.deepEqual(viewSize('planet', 1512, 944), { s: 4, w: 320, h: 200 });
-  assert.deepEqual(viewSize('planet', 100, 100), { s: 1, w: 320, h: 200 });
+test('1512x944 at 2x is scale 4', () => {
+  assert.deepEqual(viewScale(3024, 1888), { s: 4, w: 756, h: 472 });
 });
 
-test('the close-up is 344x144 at the largest whole scale, widened to cover any margin', () => {
-  assert.deepEqual(closeSize(3440, 1440), { s: 10, w: 344, h: 144 });
-  assert.deepEqual(closeSize(1512, 944), { s: 4, w: 378, h: 236 });
-  assert.deepEqual(viewSize('close', 3440, 1440), closeSize(3440, 1440));
-  const c = closeSize(200, 100);
-  assert.equal(c.s, 1); assert.ok(c.w >= 344 && c.h >= 144);
+test('viewScale never crops the world', () => {
+  for (let dW = 700; dW <= 4000; dW += 37) for (let dH = 320; dH <= 2200; dH += 41) {
+    const r = viewScale(dW, dH);
+    assert.ok((r.w >= 640 && r.h >= 300) || r.s === 1, `${dW}x${dH} -> ${JSON.stringify(r)}`);
+  }
 });
 
-test('Tab cycles city, system, galaxy, close and back', () => {
-  assert.deepEqual(VIEWS, ['planet', 'system', 'galaxy', 'close']);
-  assert.equal(nextView('planet'), 'system');
-  assert.equal(nextView('system'), 'galaxy');
-  assert.equal(nextView('galaxy'), 'close');
-  assert.equal(nextView('close'), 'planet');
-  assert.equal(nextView('nonsense'), 'planet');
+test('worldOffset centres the world', () => {
+  assert.deepEqual(worldOffset(1146, 480), { ox: 253, oy: 90 });
+  assert.deepEqual(worldOffset(640, 300), { ox: 0, oy: 0 });
+  assert.deepEqual(worldOffset(757, 301), { ox: 58, oy: 0 });
+});
+
+test('no corner label elements', () => {
+  const html = readFileSync(new URL('../web/index.html', import.meta.url), 'utf8');
+  assert.ok(!html.includes('id="where"'));
+  assert.ok(!html.includes('id="playtag"'));
 });

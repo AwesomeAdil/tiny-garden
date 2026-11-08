@@ -22,12 +22,14 @@ export const B8 = new Float32Array(64);
 [[0, 32, 8, 40, 2, 34, 10, 42], [48, 16, 56, 24, 50, 18, 58, 26], [12, 44, 4, 36, 14, 46, 6, 38], [60, 28, 52, 20, 62, 30, 54, 22], [3, 35, 11, 43, 1, 33, 9, 41], [51, 19, 59, 27, 49, 17, 57, 25], [15, 47, 7, 39, 13, 45, 5, 37], [63, 31, 55, 23, 61, 29, 53, 21]].forEach((r, y) => r.forEach((v, x) => B8[y * 8 + x] = v / 64));
 export const pickR = (R, val, b) => { let i = Math.floor(Math.min(1, val) * (R.length - 1) + b); if (i >= R.length) i = R.length - 1; return R[i < 0 ? 0 : i] };
 
-// ---- view sizes (in device pixels of the stage) ----
-// The city map is 320x200. The galaxy and system fill the stage: the integer scale comes from its height
-// (288 native rows), and the canvas takes every whole native pixel that fits. The close-up is 344x144 at the
-// largest whole scale, widened to cover the rest of the stage so its own sky fills any margin.
-export const FIT_H = 288, CLOSE_W = 344, CLOSE_H = 144, CITY_W = 320, CITY_H = 200;
-export const fitSize = (dW, dH) => { const s = Math.max(1, Math.floor(dH / FIT_H)); return { s, w: Math.max(1, Math.floor(dW / s)), h: Math.max(1, Math.floor(dH / s)) } };
-export const closeSize = (dW, dH) => { const s = Math.max(1, Math.floor(Math.min(dW / CLOSE_W, dH / CLOSE_H))); return { s, w: Math.max(CLOSE_W, Math.floor(dW / s)), h: Math.max(CLOSE_H, Math.floor(dH / s)) } };
-export const viewSize = (view, dW, dH) => view === 'galaxy' || view === 'system' ? fitSize(dW, dH) : view === 'close' ? closeSize(dW, dH)
-  : { s: Math.max(1, Math.floor(Math.min(dW / CITY_W, dH / CITY_H))), w: CITY_W, h: CITY_H };
+// ---- view scale (in device pixels of the stage) ----
+// The world is 640x300 (sim/content.js W, H); core/ must not import sim/, so the numbers are repeated here.
+const WORLD_W = 640, WORLD_H = 300;
+// Pixel size follows the screen: s = max(2, round(stageHeight / 480)), lowered until the canvas fits the whole world.
+export const viewScale = (dW, dH) => {
+  let s = Math.max(2, Math.round(dH / 480));
+  while (s > 1 && (Math.floor(dW / s) < WORLD_W || Math.floor(dH / s) < WORLD_H)) s--;
+  return { s, w: Math.max(1, Math.floor(dW / s)), h: Math.max(1, Math.floor(dH / s)) };
+};
+// Where the world's top-left sits on a w x h canvas (the world is centred).
+export const worldOffset = (w, h) => ({ ox: Math.floor((w - WORLD_W) / 2), oy: Math.floor((h - WORLD_H) / 2) });

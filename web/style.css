@@ -27,9 +27,6 @@ button { font-family:var(--mono); }
 /* Wallpaper: the world only. */
 body.wallpaper #dock, body.wallpaper #side, body.wallpaper #lines, body.wallpaper #price, body.wallpaper #ask { display:none !important; }
 body.wallpaper #map { cursor:default; }
-#playtag { display:none; position:absolute; right:calc(6px * var(--s)); bottom:calc(6px * var(--s)); pointer-events:none; background:#1a1c2b; color:var(--sub); font:800 calc(9.5px * var(--s)) var(--mono); letter-spacing:calc(1px * var(--s)); padding:calc(3px * var(--s)) calc(7px * var(--s)); }
-#playtag b { color:var(--accent); }
-body.wallpaper #playtag.on { display:block; }
 #catch { display:none; position:absolute; right:calc(6px * var(--s)); top:calc(var(--inset, 0px) + 5px * var(--s)); pointer-events:none; font:700 calc(10px * var(--s)) var(--mono); letter-spacing:calc(.8px * var(--s)); color:#6e738d; text-shadow:0 1px 0 #14151f; }
 body:not(.wallpaper) #catch.on { display:block; }
 
@@ -51,7 +48,6 @@ body:not(.wallpaper) #catch.on { display:block; }
 /* ---------- map overlays ---------- */
 #tags { position:absolute; inset:0; pointer-events:none; }
 #names { position:absolute; left:0; top:0; pointer-events:none; }
-#where { position:absolute; left:calc(4px * var(--s)); top:calc(var(--inset, 0px) + 3px * var(--s)); font:700 calc(12px * var(--s)) var(--mono); color:#8aadf4; letter-spacing:calc(.8px * var(--s)); pointer-events:none; text-shadow:0 1px 0 #14151f; }
 .ntag { position:absolute; transform:translate(-50%,0); display:flex; flex-direction:column; align-items:center; gap:calc(1px * var(--s)); font:700 calc(10.5px * var(--s)) var(--mono); line-height:1.2; letter-spacing:calc(.6px * var(--s)); white-space:nowrap; text-shadow:0 1px 0 #14151f,0 0 4px #14151f; }
 .ntag .row { display:flex; gap:calc(4px * var(--s)); align-items:center; font-weight:600; color:#cad3f5; background:rgba(24,25,38,.8); padding:0 calc(4px * var(--s)); letter-spacing:0; }
 .ntag img { width:calc(12px * var(--s)); height:calc(12px * var(--s)); image-rendering:pixelated; vertical-align:middle; }
