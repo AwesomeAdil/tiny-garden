@@ -5,7 +5,7 @@
 import { TAU, P, B8, NN, pickR, rngf, worldView } from '../core/pixel.js';
 import { PixCtx } from '../core/pixctx.js';
 import { KD, R_ARM, R_IN, R_CORE, R_TEAL } from '../core/palette.js';
-import { STY, skyLayer, twinkle, sun, planetLayer, glowAt, getSprite, drawIsland, isleBob } from './kit.js';
+import { STY, hazed, skyLayer, twinkle, sun, planetLayer, glowAt, getSprite, drawIsland, isleBob } from './kit.js';
 import { cityBackground, townLayout, citySky } from './city.js';
 
 const VW = 200, VH = 120;
@@ -17,24 +17,28 @@ const sky2 = (w, off) => ((w.def.seedOffset | 0) * 131 + off) | 0;
 
 // A soft planet horizon across the bottom of a W x H canvas: top at 80% of the height, wide enough that the bottom
 // row is planet edge to edge.
-function horizonBack(W, H, seed) {
+function horizonBack(W, H, seed, style = 'low') {
   const px = new PixCtx(W, H), L = skyLayer(W, H, seed), top = Math.round(H * .8), d = Math.max(8, H - 1 - top), half = W / 2 + 6, r = (half * half + d * d) / (2 * d);
   px.putImageData(L.img, 0, 0);
   sun(px, W - Math.max(24, Math.round(W * .12)), Math.max(12, Math.round(H * .12)));
-  planetLayer(px, W, H, W / 2, top + r, r, 1, 1, { rim: 6 });
+  // 'behind': a big planet disc, mostly below the frame, hazed toward the sky so the island reads in front of it
+  if (style === 'behind') { const R = H * .95; planetLayer(hazed(px, .4), W, H, W * .56, H * .98 + R * .5, R, 1, 1, { rim: 8 }) }
+  else planetLayer(px, W, H, W / 2, top + r, r, 1, 1, { rim: 6 });
   return { px, tw: L.tw.filter(s => px.px[s.y * W + s.x] === L.px.px[s.y * W + s.x]) };
 }
 
-// A close-up is a zoom, not a rebuild: the largest whole zoom of 2, 3 or 4 that keeps a w-pixel-wide thing within
-// about 45% of the canvas width (2 at least).
-export const zoomFor = (w, W) => [4, 3, 2].find(z => w * z <= W * .45) || 2;
+// A close-up is a zoom, not a rebuild: the largest whole zoom of 2, 3 or 4 that keeps a w x h pixel thing within about
+// 45% of the canvas width and 80% of its height; 1 only when even 2 would not fit (a tiny canvas).
+export const zoomFor = (w, h, W, H) => [4, 3, 2].find(z => w * z <= W * .45 && h * z <= H * .8) || 1;
+// Where the island close-up puts the planet: 'low' a curve along the bottom, 'behind' a big hazy disc behind and below.
+export const CLOSE = { style: 'low' };
 
 // The town square of world w on a W x H canvas: the city's own background (its sky, TIDE's horizon, houses and
 // lamps) around the town, zoomed by z and placed with the town's surface at two thirds of the height.
 export function planetView(c, game, w, t, W = VW, H = VH) {
   const stage = w.hub.stage, v = { w: W, h: H, ...worldView(W, H) };
   const B = remember(['town', W, H, w.def.key, stage, game.seed].join(), () => {
-    const src = cityBackground(game, w, v), T = src.town, z = zoomFor(T.half * 2, W), px = new PixCtx(W, H);
+    const src = cityBackground(game, w, v), T = src.town, z = zoomFor(T.half * 2, 30, W, H), px = new PixCtx(W, H);
     const sx0 = Math.round(T.H.cx - W / z / 2), sy0 = Math.max(0, Math.min(H - Math.ceil(H / z), Math.round(T.H.top - H * .66 / z)));
     for (let y = 0; y < H; y++) { const sy = sy0 + Math.floor(y / z); if (sy >= H) break; for (let x = 0; x < W; x++) { const sx = sx0 + Math.floor(x / z); px.px[y * W + x] = sx >= 0 && sx < W ? src.px.px[sy * W + sx] : src.px.px[sy * W + (sx < 0 ? 0 : W - 1)] } }
     return { px, z, sx0, sy0, tw: src.tw, lamps: T.lamps };
@@ -87,8 +91,8 @@ export function dawn(c, t, W = VW, H = VH, rt = t) {
 // Island n of world w: the city's own near-band sprite (identical to what the city draws), zoomed whole over a soft
 // horizon under the stars. Goods are never drawn.
 export function islandView(c, w, n, t, W = VW, H = VH) {
-  const B = remember(['isl', W, H, sky2(w, 89)].join(), () => horizonBack(W, H, sky2(w, 89)));
+  const B = remember(['isl', W, H, sky2(w, 89), CLOSE.style].join(), () => horizonBack(W, H, sky2(w, 89), CLOSE.style));
   c.putImageData(B.px.img, 0, 0); twinkle(c, B.tw, t);
-  const I = getSprite(w, n, 'near', worldView(W, H).k), z = zoomFor(I.w, W), x = Math.round(W / 2), y = Math.round(H * .46 - I.h * z / 2 + I.oy * z) + isleBob(n, t) * z;
+  const I = getSprite(w, n, 'near', worldView(W, H).k), z = zoomFor(I.w, I.h, W, H), x = Math.round(W / 2), y = Math.round(H * .46 - I.h * z / 2 + I.oy * z) + isleBob(n, t) * z;
   drawIslandZoom(c, I, x, y, t, z);
 }

@@ -67,13 +67,32 @@ function planetD(c, p, x, y, r, t, sx, sy, dim, lift) {
 // point per pixel.
 export function arcPath(A, B, sun, rSun, margin = 6) {
   const dx = B[0] - A[0], dy = B[1] - A[1], L = Math.hypot(dx, dy) || 1, nx = -dy / L, ny = dx / L, mx = (A[0] + B[0]) / 2, my = (A[1] + B[1]) / 2;
-  const s = (sun[0] - mx) * nx + (sun[1] - my) * ny, side = s > .5 ? -1 : s < -.5 ? 1 : (ny <= 0 ? 1 : -1), need = rSun + margin;
+  const s = (sun[0] - mx) * nx + (sun[1] - my) * ny, side = s > .5 ? -1 : s < -.5 ? 1 : (ny <= 0 ? 1 : -1);
+  return arcSide(A, B, sun, rSun, side, margin).pts;
+}
+// The arc on one side of the chord (side +1: the chord normal (-dy, dx)/L, -1 the other): {pts, ctrl, d}.
+function arcSide(A, B, sun, rSun, side, margin = 6) {
+  const dx = B[0] - A[0], dy = B[1] - A[1], L = Math.hypot(dx, dy) || 1, nx = -dy / L, ny = dx / L, mx = (A[0] + B[0]) / 2, my = (A[1] + B[1]) / 2, need = rSun + margin;
   const at = (d, f) => { const cx = mx + nx * side * d * 2, cy = my + ny * side * d * 2, g = 1 - f; return [g * g * A[0] + 2 * g * f * cx + f * f * B[0], g * g * A[1] + 2 * g * f * cy + f * f * B[1]] };
   const clear = d => { for (let i = 0; i <= 200; i++) { const q = at(d, i / 200); if (Math.hypot(q[0] - sun[0], q[1] - sun[1]) < need + .25) return false } return true };
-  let d = .15 * L / 2; for (let i = 0; i < 2000 && !clear(d); i++) d += 1;
+  let d = .15 * L / 2; for (let i = 0; i < 4000 && !clear(d); i++) d += .5;
   let len = 0, prev = A; for (let i = 1; i <= 24; i++) { const q = at(d, i / 24); len += Math.hypot(q[0] - prev[0], q[1] - prev[1]); prev = q }
   const n = Math.max(8, Math.ceil(len)), out = []; for (let i = 0; i <= n; i++) out.push(at(d, i / n));
   out[0] = [A[0], A[1]]; out[n] = [B[0], B[1]];
+  return { pts: out, ctrl: [mx + nx * side * d * 2, my + ny * side * d * 2], d };
+}
+const sstep = (a, b, x) => { const q = Math.max(0, Math.min(1, (x - a) / (b - a))); return q * q * (3 - 2 * q) };
+// The cable as up to two arcs, one each side of the chord, with weights (summing to 1) that hand over smoothly. A
+// single arc cannot stay clear of the sun and also be continuous while the sun crosses the chord, so the two
+// arcs trade: the one on the sun's side fades out as the sun reaches the chord, the other fades in. Away from the
+// chord's span only the default side (+1) shows. Every arc with weight > 0 is clear of the sun by rSun + 6.
+// Returns [{pts, ctrl, w}] (w > 0 only).
+export function arcBlend(A, B, sun, rSun, margin = 6) {
+  const dx = B[0] - A[0], dy = B[1] - A[1], L = Math.hypot(dx, dy) || 1, nx = -dy / L, ny = dx / L, W = rSun + margin;
+  const u = (sun[0] - (A[0] + B[0]) / 2) * nx + (sun[1] - (A[1] + B[1]) / 2) * ny, t = ((sun[0] - A[0]) * dx + (sun[1] - A[1]) * dy) / L, beyond = Math.max(0, -t, t - L);
+  const p = 1 - sstep(0, W * 2, beyond), wPlus = 1 + (sstep(W, -W, u) - 1) * p, out = [];
+  if (wPlus > 0) out.push({ ...arcSide(A, B, sun, rSun, 1, margin), w: wPlus });
+  if (wPlus < 1) out.push({ ...arcSide(A, B, sun, rSun, -1, margin), w: 1 - wPlus });
   return out;
 }
 const CABLE = '#cad3f5';
@@ -96,10 +115,11 @@ export function drawSystem(ctx, game, t, sel, W = 688, H = 288) {
   // Cables go down before the sun and the planets, so nothing ever crosses either. A glint runs along one every
   // 8 s while a walker is crossing either end world's bridges.
   (game.cables || []).forEach(cb => {
-    const pts = arcPath(sysXY(v, SYSP[cb.a], T), sysXY(v, SYSP[cb.b], T), [sx, sy], back.sr), dot = mx(CABLE, SKY_BG, .5);
-    pts.forEach(([x, y], i) => { if ((i & 3) < 2) P(c, dot, x, y) });
+    const arcs = arcBlend(sysXY(v, SYSP[cb.a], T), sysXY(v, SYSP[cb.b], T), [sx, sy], back.sr), dot = mx(CABLE, SKY_BG, .5);
+    // the weight is a dither: the fading arc loses dots through the Bayer matrix
+    for (const a of arcs) a.pts.forEach(([x, y], i) => { if ((i & 3) < 2 && (a.w >= 1 || a.w > B8[(Math.round(y) & 7) * 8 + (Math.round(x) & 7)])) P(c, dot, x, y) });
     if ([cb.a, cb.b].some(i => game.worlds[i] && game.worlds[i].S.ropes.some(r => r.dir !== 0))) {
-      const g = (t / 8) % 1, n = pts.length - 1;
+      const pts = arcs.reduce((m, a) => a.w > m.w ? a : m).pts, g = (t / 8) % 1, n = pts.length - 1;
       for (let k = 0; k < 8; k++) { const q = pts[Math.max(0, Math.round(g * n) - k * 2)]; A(c, k ? '#8aadf4' : '#e3eafc', 1 - k / 8, q[0], q[1]) }
     }
   });

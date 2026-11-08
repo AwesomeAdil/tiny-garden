@@ -305,6 +305,9 @@ export function homeProp(type, seed, hw) {
 // Small scenery for the gaps between spots on a wide top, by the type's deco.
 const FILL = { house: ['tree', 'tuft', 'tree', 'stone'], forge: ['stone', 'cairn', 'stone', 'tuft'], sparks: ['emberTree', 'stone', 'tuft'], snow: ['pine', 'tuft', 'pine', 'stone'], crystal: ['crystal', 'stone', 'tuft'], flowers: ['tree', 'tuft', 'tree', 'flowers'] };
 const FILL_SHAPE = { tree: F => ({ r: 2 + (F() * 2 | 0), h: 2 + (F() * 2 | 0), fruit: F() < .2 ? 1 : 0 }), pine: F => ({ h: 5 + (F() * 3 | 0) }), emberTree: F => ({ h: 4, sp: 2 }), crystal: F => ({ dh: [-3, -2, -2, -1].map(d => d - (F() * 2 | 0)) }), flowers: F => ({ seed: 50 + (F() * 50 | 0) }) };
+// An island's rock depth for a half-width hw: the stage sheet's .85 x hw is the ceiling (up to hw 26), falling to .38 x hw
+// by hw 80, so a big island is a wider version of a sheet island, not a fatter one.
+export const depthFor = hw => Math.round(hw * (.85 - .47 * Math.max(0, Math.min(1, (hw - 26) / 54))));
 export const BANDS = { far: { haze: .55 }, mid: { haze: .25 }, near: { haze: 0 } };
 // Islands grow a little with each stage, as a factor on their band's size.
 export const STAGE_F = [0, .75, .85, .93, 1];
@@ -343,7 +346,7 @@ export function islandSprite(spec) {
   // The centrepiece goes last: it stands in front of whatever grew on the spots beside it.
   if (st >= 3) props.push(homeProp(spec.type, seed, hw));
   props.sort((a, b) => FLAT.has(b.k) - FLAT.has(a.k));
-  return makeIsland({ S: typeStyle(spec.type), hw, depth: spec.depth ?? Math.round(hw * .85), seed, haze: spec.haze || 0, bare: st === 1, props, falls: spec.falls || [], bloom: st >= 4 });
+  return makeIsland({ S: typeStyle(spec.type), hw, depth: spec.depth ?? depthFor(hw), seed, haze: spec.haze || 0, bare: st === 1, props, falls: spec.falls || [], bloom: st >= 4 });
 }
 
 const PICK_PROP = Object.fromEntries([...Object.values(PIER_PICKS), ...Object.values(MID_PICKS)].flat().map(p => [p.id, p.prop]));
@@ -364,7 +367,7 @@ export function islandSpec(w, n, band, k = 1) {
   }
   const piers = w.S.ropes.filter(r => r.a === n.id || r.b === n.id).map(r => pierSide(w, n, r.id)).sort();
   const hw = Math.max(4, Math.round(islandHW(n, band) * k));
-  return { type: n.id, seed: n.seed, stage: st, picks, gifts, falls: [...falls].sort(), piers, hw, depth: Math.round(hw * .85), haze: B.haze };
+  return { type: n.id, seed: n.seed, stage: st, picks, gifts, falls: [...falls].sort(), piers, hw, depth: depthFor(hw), haze: B.haze };
 }
 const keyOf = (w, s, band) => `${w.def.key}|${s.type}|seed:${s.seed}|st:${s.stage}|p:${s.picks.map(p => p.spot + p.prop)}|g:${s.gifts.map(g => g.spot + g.kind + g.variant)}|piers:${s.piers}|falls:${s.falls}|hw:${s.hw}|${band}`;
 // Changes only with the seed, stage, picks, gifts, pier sides, falls or band (never with time or walkers).

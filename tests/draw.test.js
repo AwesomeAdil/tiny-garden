@@ -141,8 +141,11 @@ test('blitZoom makes exact z x z blocks and keeps alpha', () => {
 test('the island close-up is the city sprite zoomed whole', async () => {
   const { islandView, zoomFor } = await import('../web/js/draw/closeup.js');
   const { getSprite } = await import('../web/js/draw/kit.js');
-  const game = skip(newGame(3)), w = game.worlds[0], n = isl(w)[0], W = 1146, H = 480, v = worldView(W, H), I = getSprite(w, n, 'near', v.k), z = zoomFor(I.w, W);
-  assert.ok(z >= 2 && z <= 4 && I.w * z <= W * .45 + 1e-9 || z === 2);
+  const game = skip(newGame(3)), w = game.worlds[0], n = isl(w)[0], W = 1146, H = 480, v = worldView(W, H), I = getSprite(w, n, 'near', v.k), z = zoomFor(I.w, I.h, W, H);
+  assert.equal(z, [4, 3, 2].find(q => I.w * q <= W * .45 && I.h * q <= H * .8), 'the largest zoom that fits both ways');
+  assert.ok(I.w * z <= W * .45 && I.h * z <= H * .8);
+  // a small canvas: the zoomed sprite is whole on screen, not clipped
+  for (const [cw, ch] of [[344, 144], [200, 120], [756, 472]]) { const k = worldView(cw, ch).k, S = getSprite(w, n, 'near', k), q = zoomFor(S.w, S.h, cw, ch); assert.ok(S.w * q <= cw && S.h * q <= ch, `${cw}x${ch} z${q}`) }
   const c = new PixCtx(W, H); islandView(c, w, n, 3, W, H);
   // the sprite's own opaque pixels show as z x z blocks of the same colour somewhere on the canvas
   let found = 0;
@@ -157,4 +160,39 @@ test('the island close-up is the city sprite zoomed whole', async () => {
     }
   }
   assert.ok(found >= 3, `zoomed blocks found: ${found}`);
+});
+
+test('blitZoom clips at negative offsets and blends partial alpha', () => {
+  const src = new PixCtx(2, 2, { transparent: true }); src.fillStyle = '#ff0000'; src.fillRect(0, 0, 2, 1); src.fillRect(0, 1, 1, 1);
+  src.globalAlpha = .5; src.fillStyle = '#0000ff'; src.fillRect(1, 1, 1, 1); src.globalAlpha = 1;
+  // src pixel (1,1) is now blue over transparent at alpha .5
+  const dst = new PixCtx(8, 8); dst.fillStyle = '#000000'; dst.fillRect(0, 0, 8, 8);
+  dst.blitZoom(src, -3, -3, 3); // red covers canvas (0..2,0..2) minus the clipped part; the zoomed pixel (1,1) spans (0..5)-3 ... see below
+  const px = (x, y) => dst.px[y * 8 + x], RED = 0xff0000ff, BLACK = 0xff000000;
+  // source pixel (0,0) spans -3..-1: fully off canvas. (1,0) spans 0..2 x -3..-1: off. (0,1) spans -3..-1 x 0..2: off. (1,1) spans 0..2 x 0..2.
+  for (let y = 0; y < 3; y++) for (let x = 0; x < 3; x++) assert.notEqual(px(x, y), BLACK, `blended block ${x},${y}`);
+  assert.equal(px(0, 0), px(2, 2), 'one blended colour across the whole z x z block');
+  assert.equal(px(3, 0), BLACK); assert.equal(px(0, 3), BLACK);
+  // half-alpha blue over black: blue about 128, no red
+  const c = px(1, 1); assert.ok(((c >> 16) & 255) >= 126 && ((c >> 16) & 255) <= 129 && (c & 255) === 0);
+  // drawn at +2 the opaque red pixels are exact 3 x 3 blocks and the canvas edge clips the last block
+  const d2 = new PixCtx(8, 8); d2.fillStyle = '#000000'; d2.fillRect(0, 0, 8, 8); d2.blitZoom(src, 2, 2, 3);
+  assert.equal(d2.px[2 * 8 + 2], RED); assert.equal(d2.px[4 * 8 + 4], RED); assert.equal(d2.px[2 * 8 + 5], RED); assert.equal(d2.px[5 * 8 + 2], RED);
+  assert.notEqual(d2.px[5 * 8 + 5], RED, 'the blended pixel is not opaque');
+  assert.equal(d2.px[1 * 8 + 1], BLACK);
+});
+
+test('the hub is a rock on the crest: houses stand on it, nodeAt uses its shape, deeper islands are shallower per width', async () => {
+  const { townLayout, hubSprite, HUB_HW, HUB_RISE } = await import('../web/js/draw/city.js');
+  const { depthFor } = await import('../web/js/draw/kit.js');
+  const v = view(1146, 480), T = townLayout(v, 4), I = hubSprite();
+  assert.equal(T.hubTop, T.H.top - HUB_RISE);
+  for (const h of T.houses) { assert.equal(h.y, T.hubTop + 1); assert.ok(Math.abs(h.x - T.H.cx) <= HUB_HW - 6, 'on the rock'); }
+  assert.ok(I.hw === HUB_HW && T.half + 3 < HUB_HW);
+  const game = skip(newGame(3)), w = game.worlds[0], hub = node(w, 'planet');
+  assert.equal(nodeAt(w, { x: hub.x + HUB_HW / 1.6 - 3, y: hub.y }), hub, 'the rock\'s side');
+  assert.equal(nodeAt(w, { x: hub.x + HUB_HW / 1.6 + 20, y: hub.y }), null, 'beside the rock');
+  // depth per width never exceeds the stage sheet's .85 and falls for big islands
+  for (const hw of [8, 14, 22, 26]) assert.equal(depthFor(hw), Math.round(hw * .85));
+  assert.ok(depthFor(80) <= 80 * .4 + 1 && depthFor(54) / 54 < depthFor(26) / 26 && depthFor(80) / 80 < depthFor(54) / 54);
 });

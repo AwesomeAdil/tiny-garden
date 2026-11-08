@@ -16,7 +16,7 @@ import { MAXR, TOWN } from '../sim/content.js';
 import { node, isl, dist, canTie } from '../sim/world.js';
 import { pierSide } from '../sim/grow.js';
 import { SPOTS } from '../sim/picks.js';
-import { CR, STY, BANDS, islandHW, bandFor, skyLayer, twinkle, sun, planetLayer, glowAt, lamp, PROPS, getSprite, drawIsland, SPOT_X, span, plank, along, pier, pierGlow, astro, hazed, isleBob } from './kit.js';
+import { CR, STY, makeIsland, BANDS, islandHW, bandFor, skyLayer, twinkle, sun, planetLayer, glowAt, lamp, PROPS, getSprite, drawIsland, SPOT_X, span, plank, along, pier, pierGlow, astro, hazed, isleBob } from './kit.js';
 import { drawEvent } from './events.js';
 
 const S = STY.book, IDLE = '#494d64', BAND_ORDER = ['far', 'mid', 'near'];
@@ -33,7 +33,12 @@ const skySeed = (game, w) => ((game.seed | 0) * 7 + (w.def.seedOffset | 0) * 131
 // The city's starfield for this game and world at W x H (exported for tests).
 export const citySky = (game, w, W, H) => skyLayer(W, H, skySeed(game, w));
 
-// The town: 1 + 2*(stage-1) houses along the curve (outermost added last), and `stage` lamps.
+// The hub: a flat-topped storybook rock resting on TIDE's crest, wide enough for the grown town and four piers
+// (two a side). Built once; its top sits HUB_RISE px above the crest so its body is partly sunk into the planet.
+export const HUB_HW = 46, HUB_DEPTH = 26, HUB_RISE = 5;
+let HUB = null;
+export const hubSprite = () => HUB || (HUB = makeIsland({ S, hw: HUB_HW, depth: HUB_DEPTH, seed: 5, lobes: 1, props: [] }));
+// The town: 1 + 2*(stage-1) houses along the rock's top (outermost added last), and `stage` lamps.
 const HOUSE_H = [5, 7, 6, 5, 7, 4, 6], ROOF = [['#ed8796', '#a8473f'], ['#8aadf4', '#3f5fa8'], ['#a6da95', '#5f9a68'], ['#eed49f', '#a98a7c']];
 function townHouse(c, x, y, h, rf) {
   const [r, rd] = ROOF[rf % ROOF.length];
@@ -44,11 +49,12 @@ function townHouse(c, x, y, h, rf) {
 }
 export function townLayout(view, stage) {
   const H = horizon(view), st = clamp(stage | 0, 1, 4), n = 1 + 2 * (st - 1), houses = [], lamps = [];
-  for (let i = 0; i < n; i++) { const x = Math.round(H.cx + (i - (n - 1) / 2) * 10); houses.push({ x, y: Math.round(H.surf(x)) + 2, h: HOUSE_H[i % HOUSE_H.length], rf: i }) }
+  const hubTop = H.top - HUB_RISE;
+  for (let i = 0; i < n; i++) { const x = Math.round(H.cx + (i - (n - 1) / 2) * 10); houses.push({ x, y: hubTop + 1, h: HOUSE_H[i % HOUSE_H.length], rf: i }) }
   const half = (n - 1) * 5 + 4, slots = [half + 3, -(half + 3)];
   for (let i = 0; i < n - 1; i++) if (i % 2 === 0) slots.push(Math.round((i - (n - 2) / 2) * 10));
-  for (let j = 0; j < st && j < slots.length; j++) { const x = Math.round(H.cx + slots[j]); lamps.push({ x, y: Math.round(H.surf(x)) + 1 }) }
-  return { H, houses, lamps, half: half + 6 };
+  for (let j = 0; j < st && j < slots.length; j++) { const x = Math.round(H.cx + slots[j]); lamps.push({ x, y: hubTop + 1 }) }
+  return { H, houses, lamps, half: half + 6, hubTop };
 }
 
 // ---------- the cached background ----------
@@ -62,6 +68,7 @@ export function cityBackground(game, w, view) {
   // Land and clouds follow the curve, foreshortened toward the horizon (page 45's 1.1 x 3.2 there, larger nearer).
   const PD = 40, map = (x, y) => { const d = Math.max(0, y - H.surf(x)), k = 1 / (1 + d / PD); return [H.cx + (x - H.cx) * 1.1 * k, 3.2 * PD * Math.log(1 + d / PD) + 300] };
   planetLayer(px, W, Hh, H.cx, H.cy, H.r, 1, 1, { rim: 8, map });
+  { const I = hubSprite(); px.blit(I.px, H.cx - I.ox, T.hubTop - I.oy) }
   for (const h of T.houses) townHouse(px, h.x, h.y, h.h, h.rf);
   for (const l of T.lamps) lamp(px, l.x, l.y, S);
   B = { px, town: T, tw: L.tw.filter(s => s.y < H.surf(s.x) - 4) };
@@ -78,7 +85,7 @@ export const nodeAt = (w, p, view = null) => {
   let best = null, bd = 1e9;
   for (const n of w.S.nodes) {
     let d;
-    if (n.kind === 'planet') { d = Math.hypot(n.x - p.x, n.y - p.y); if (d >= n.r + 3) continue }
+    if (n.kind === 'planet') { const dx = Math.abs(p.x - n.x), dy = p.y - n.y; if (dx > HUB_HW / 1.6 + 2 || dy < -(HUB_RISE + 30) / 1.6 || dy > HUB_DEPTH / 1.6 + 4) continue; d = Math.hypot(dx, dy) }
     else { const hw = islandHW(n); if (Math.abs(p.x - n.x) > hw + 3 || p.y < n.y - 16 || p.y > n.y + hw * .85 + 2) continue; d = Math.hypot(p.x - n.x, p.y - n.y - 4) }
     if (d < bd) { bd = d; best = n }
   }
@@ -107,7 +114,7 @@ function piersOf(w, isles, T, H) {
     list.sort((a, b) => a.o.y - b.o.y || a.r.id - b.r.id);
     list.forEach(({ r, n, s }, j) => {
       let x, y;
-      if (n.kind === 'planet') { x = Math.round(H.cx + s * (T.half + 2 + j * 11)); y = Math.round(H.surf(x)) + 1 }
+      if (n.kind === 'planet') { const I = hubSprite(), dy = 2 + Math.min(j, 3) * 5; x = Math.round(H.cx) + edgeOf(I, dy, s) - s; y = T.hubTop + dy }
       else { const D = isles.get(n.id), dy = j * 7; x = Math.round(D.x) + edgeOf(D.I, dy, s) - s; y = Math.round(D.y) + dy }
       out.set(r.id + ':' + n.id, { x, y, s, n });
     });
@@ -158,7 +165,7 @@ function overlays(c, game, w, isles, bridges, t, input, view, H) {
   if (Sx.sel && Sx.sel.t === 'node') {
     const n = node(w, Sx.sel.id), D = n && isles.get(n.id);
     if (D) dottedRing(c, D.x, D.y + D.I.depth / 2 - 4, D.I.hw + 6, D.I.depth / 2 + 10, t);
-    else if (n) dottedRing(c, H.cx, H.top - 6, 34, 9, t);
+    else if (n) dottedRing(c, H.cx, H.top - 2, HUB_HW + 6, 12, t);
   } else if (Sx.sel) { const B = bridges.get(Sx.sel.id); if (B) for (let i = 0; i <= 12; i++) { const [x, y] = along(B.pts, i / 12); P(c, '#c6a0f6', x, y + 3) } }
   // the reach ring: round the island under the pointer, or the source of a bridge being tied
   const src = drag && drag.kind === 'rope' ? node(w, drag.id) : pointer && nodeAt(w, pointer);

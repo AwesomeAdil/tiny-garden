@@ -27,8 +27,9 @@ export const discScale = (W, H) => Math.min(H * 262 / 288, W * 262 / 688);
 
 // A pan that keeps the home disc at least partly on screen.
 export const galClampPan = (p, W, H) => { const sc = discScale(W, H); return { x: clamp(+p.x || 0, -(W / 2 + .5 * sc), W / 2 + .5 * sc), y: clamp(+p.y || 0, -(H / 2 + .1 * sc), H / 2 + .1 * sc) } };
-// The pan to draw with: only play pans; the wallpaper always shows home.
-export const galPanFor = (mode, game) => mode === 'play' && game.ui.galPan ? { x: +game.ui.galPan.x || 0, y: +game.ui.galPan.y || 0 } : { x: 0, y: 0 };
+// The pan to draw with: play gets the saved pan (and so the neighbour galaxies); the wallpaper gets null, which is
+// home alone, unpanned.
+export const galPanFor = (mode, game) => mode === 'play' ? { x: +(game.ui.galPan && game.ui.galPan.x) || 0, y: +(game.ui.galPan && game.ui.galPan.y) || 0 } : null;
 
 // A neighbour galaxy sprite (transparent where it is pure space), dithered through the same ramps as the disc.
 const NBS = new Map();
@@ -48,7 +49,7 @@ function neighbourSprite(nb, sc) {
 // Per-pixel tables, built once per size. Only pixels the disc or bulge can reach ("active") are recomputed
 // as it turns; every other pixel stays space, with a seeded starfield like the sky's.
 export function galInit(W = W0, H = H0, sc = discScale(W, H)) {
-  const n = W * H, G = { W, H, img: new ImageData(W, H), cx: W / 2, cy: H / 2, sc, k: sc / 150.4, pan: { x: 0, y: 0 }, key: null, sky: skyLayer(W, H, 57) }; G.px = new Uint32Array(G.img.data.buffer);
+  const n = W * H, G = { W, H, img: new ImageData(W, H), cx: W / 2, cy: H / 2, sc, k: sc / 150.4, pan: { x: 0, y: 0 }, key: null, tw: [], base: new Uint32Array(W * H), sky: skyLayer(W, H, 57) }; G.px = new Uint32Array(G.img.data.buffer);
   const sr = Math.sin(GO.roll), cr = Math.cos(GO.roll), act = [];
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const dx = (x - G.cx) / sc, dy = (y - G.cy) / sc, py = dx * sr + dy * cr, pxx = dx * cr - dy * sr, r = Math.hypot(pxx, py / GO.tilt); if (r < 1.1 || Math.hypot(pxx, py) < .4) act.push(y * W + x) }
   const m = act.length, F = () => new Float32Array(m);
@@ -83,13 +84,13 @@ export const galInvalidate = ctx => { LAST.delete(ctx); LASTPAN.delete(ctx) };
 
 // sel is the selected system's name (game.ui.galSel) or null. Redraws at most every 0.1 s per canvas.
 // rt is the time the galaxy has turned to (default t); the costly per-pixel disc is only recomputed when it changes.
-// pan ({x, y}, canvas pixels, default none) slides the disc and its neighbours over the fixed sky; the caller passes
-// galPanFor(mode, game), so the wallpaper never pans.
+// pan ({x, y}, canvas pixels) slides the disc and the three neighbour galaxies over the fixed sky. null (the wallpaper:
+// galPanFor('wallpaper')) is home alone, unpanned, with no neighbours.
 export function drawGalaxy(ctx, t, sel, rt = t, W = W0, H = H0, pan = null) {
-  const mc = ctx, last = LAST.has(mc) ? LAST.get(mc) : -1, pp = galClampPan(pan || { x: 0, y: 0 }, W, H), pk = Math.round(pp.x) + ',' + Math.round(pp.y);
+  const mc = ctx, last = LAST.has(mc) ? LAST.get(mc) : -1, pp = galClampPan(pan || { x: 0, y: 0 }, W, H), pk = pan ? Math.round(pp.x) + ',' + Math.round(pp.y) : 'home';
   if (last >= 0 && t >= last && t - last < .1 && LASTPAN.get(mc) === pk) return; LAST.set(mc, t); LASTPAN.set(mc, pk);
   const G = gal(W, H), o = GO, rot = galRot(rt), m = o.arms, rotN = rot / TAU * 768, px = G.px, k = G.k;
-  G.pan = { x: Math.round(pp.x), y: Math.round(pp.y) };
+  G.pan = pan ? { x: Math.round(pp.x), y: Math.round(pp.y) } : { x: 0, y: 0 };
   let fresh = false;
   if (G.rot !== rot) {
     fresh = true;
@@ -107,17 +108,23 @@ export function drawGalaxy(ctx, t, sel, rt = t, W = W0, H = H0, pan = null) {
     }
   }
   G.rot = rot;
-  // Compose: the sky, then the neighbours, then the disc, all offset by the pan. Only when the disc or the pan moved.
-  if (fresh || G.key !== pk) {
-    G.key = pk; px.set(G.sky.px.px);
-    for (const nb of NEIGHBOURS) {
+  // The sky and the neighbours are one cached layer per pan; each turn of the disc is then a copy and the disc's scatter.
+  let dirty = false;
+  if (G.key !== pk) {
+    G.key = pk; dirty = true; G.base.set(G.sky.px.px);
+    if (pan) for (const nb of NEIGHBOURS) {
       const S = neighbourSprite(nb, G.sc), x0 = Math.round(G.cx + G.pan.x + nb.dx * G.sc - S.w / 2), y0 = Math.round(G.cy + G.pan.y + nb.dy * G.sc - S.h / 2);
-      for (let y = Math.max(0, -y0); y < Math.min(S.h, H - y0); y++) for (let x = Math.max(0, -x0); x < Math.min(S.w, W - x0); x++) { const c = S.px[y * S.w + x]; if (c) px[(y0 + y) * W + x0 + x] = c }
+      for (let y = Math.max(0, -y0); y < Math.min(S.h, H - y0); y++) for (let x = Math.max(0, -x0); x < Math.min(S.w, W - x0); x++) { const c = S.px[y * S.w + x]; if (c) G.base[(y0 + y) * W + x0 + x] = c }
     }
-    const { ax, ay, dc } = G, px0 = G.pan.x, py0 = G.pan.y;
-    for (let j = 0, n = dc.length; j < n; j++) { const c = dc[j]; if (!c) continue; const x = ax[j] + px0, y = ay[j] + py0; if (x >= 0 && x < W && y >= 0 && y < H) px[y * W + x] = c }
   }
-  mc.putImageData(G.img, 0, 0); twinkle(mc, G.sky.tw, t);
+  if (fresh || dirty) {
+    px.set(G.base);
+    const { ax, ay, dc } = G, px0 = pan ? G.pan.x : 0, py0 = pan ? G.pan.y : 0;
+    for (let j = 0, n = dc.length; j < n; j++) { const c = dc[j]; if (!c) continue; const x = ax[j] + px0, y = ay[j] + py0; if (x >= 0 && x < W && y >= 0 && y < H) px[y * W + x] = c }
+    // twinkling stars only where the sky shows (not under a galaxy)
+    G.tw = G.sky.tw.filter(s => px[s.y * W + s.x] === G.sky.px.px[s.y * W + s.x]);
+  }
+  mc.putImageData(G.img, 0, 0); twinkle(mc, G.tw, t);
   G.stars.forEach(s => { const p = gpos(s.q, s.a, rot); if (p.x < 0 || p.x >= W || p.y < 0 || p.y >= H) return; const tw = Math.sin(t * .8 + s.ph); if (tw < -.6) return; const col = s.v > .82 ? '#f0c6c6' : s.v > .55 ? '#cad3f5' : '#8aadf4'; P(mc, col, Math.round(p.x), Math.round(p.y)); if (s.big && tw > .45) { mc.globalAlpha = .42; P(mc, col, Math.round(p.x) - 1, Math.round(p.y), 3, 1); P(mc, col, Math.round(p.x), Math.round(p.y) - 1, 1, 3); mc.globalAlpha = 1 } });
   const bh = Math.max(2, Math.round(o.bh * k)), jl = Math.round(70 * k);
   for (let s = -1; s <= 1; s += 2) for (let q = 0; q < jl; q++) { const qq = q / k, j = Math.sin(qq * .3 - t * 2.2); mc.globalAlpha = Math.max(0, 1 - qq / 76) * (.62 + .38 * j); const w = qq < 24 ? 1 : qq < 52 ? 2 : 3, sway = Math.sin(qq * .13 + t * .7) * (q / 24); P(mc, qq < 26 ? '#e3eafc' : qq < 50 ? '#7dc4e4' : '#8aadf4', Math.round(G.cx + G.pan.x + sway - w / 2 - (s * q * Math.sin(-.2))), Math.round(G.cy + G.pan.y + s * (bh + 3 + q)), w, 1); mc.globalAlpha = 1 }

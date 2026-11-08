@@ -78,3 +78,28 @@ test('the planets at opposite sides of the sun get an arc that clears it', () =>
     assert.ok(minDist(arcPath(A, B, sun, 14), sun) >= 20);
   }
 });
+
+test('arcBlend is continuous over a full relative orbit and always clears the sun', async () => {
+  const { arcBlend } = await import('../web/js/draw/system.js');
+  const v = sysView(1146, 480), g = newGame(1), ps = sysPlanets(g), sun = [v.cx, v.cy], rS = 17, N = 6000, span = 2 * Math.PI / Math.abs(ps[1].v - ps[0].v);
+  let prev = null, worstCtrl = 0, worstW = 0, flips = 0;
+  for (let i = 0; i <= N; i++) {
+    const T = i / N * span, A = sysXY(v, ps[0], T), B = sysXY(v, ps[1], T), arcs = arcBlend(A, B, sun, rS);
+    assert.ok(Math.abs(arcs.reduce((a, x) => a + x.w, 0) - 1) < 1e-9, 'weights sum to 1');
+    for (const a of arcs) assert.ok(minDist(a.pts, sun) >= rS + 6 - 1e-6, `step ${i} clear: ${minDist(a.pts, sun)}`);
+    const cur = { plus: arcs.find(a => a.w > 0 && a.side === 1), arcs };
+    if (prev) {
+      // an arc that stays on screen across two samples (both weights > 0) must have its control point move only a few px
+      for (let k = 0; k < Math.min(arcs.length, prev.length); k++) {
+        const a = arcs[k], b = prev[k]; if (arcs.length !== prev.length || a.w < .03 || b.w < .03) continue; // a nearly gone arc is invisible
+        worstCtrl = Math.max(worstCtrl, Math.hypot(a.ctrl[0] - b.ctrl[0], a.ctrl[1] - b.ctrl[1]));
+      }
+      const wa = arcs[0].w, wb = prev[0].w; if (arcs.length === prev.length) worstW = Math.max(worstW, Math.abs(wa - wb));
+      if (arcs.length !== prev.length) flips++;
+    }
+    prev = arcs;
+  }
+  assert.ok(worstCtrl <= 6, `control point jumped ${worstCtrl.toFixed(1)} px between adjacent samples`);
+  assert.ok(worstW <= .05, `weight jumped ${worstW.toFixed(3)}`);
+  assert.ok(flips >= 0);
+});
